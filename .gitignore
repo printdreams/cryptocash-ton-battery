@@ -1,0 +1,11 @@
+.env
+*.env.local
+
+/tmp/
+/bin/
+main
+*.exe
+*.out
+
+.DS_Store
+vendor/
