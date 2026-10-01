@@ -1,0 +1,17 @@
+{
+  "name": "w5-gasless-spike",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "T1 spike: prove W5 (v5R1) gasless via internal-auth on TON testnet",
+  "scripts": {
+    "keys": "node keys.mjs",
+    "run": "node gasless.mjs"
+  },
+  "dependencies": {
+    "@orbs-network/ton-access": "^2.3.3",
+    "@ton/core": "^0.60.0",
+    "@ton/crypto": "^3.3.0",
+    "@ton/ton": "^16.0.0"
+  }
+}

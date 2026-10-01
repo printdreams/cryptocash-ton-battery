@@ -1,10 +1,168 @@
 basePath: /
+definitions:
+  handler.creditRequest:
+    properties:
+      amount:
+        type: integer
+      idempotencyKey:
+        type: string
+      reason:
+        type: string
+    type: object
+  tonproof.Domain:
+    properties:
+      length_bytes:
+        type: integer
+      value:
+        type: string
+    type: object
+  tonproof.Proof:
+    properties:
+      domain:
+        $ref: '#/definitions/tonproof.Domain'
+      payload:
+        type: string
+      signature:
+        type: string
+      timestamp:
+        type: integer
+    type: object
+  tonproof.Request:
+    properties:
+      address:
+        type: string
+      network:
+        type: string
+      proof:
+        $ref: '#/definitions/tonproof.Proof'
+      public_key:
+        type: string
+      wallet_state_init:
+        type: string
+    type: object
 info:
   contact: {}
   description: Backend service for the Cryptocash Battery on the TON network.
   title: Battery implementation for TON network
   version: "1.0"
 paths:
+  /admin/users/{id}:
+    get:
+      description: Returns balance, reserved and available charges for a user. Requires
+        the admin token.
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - AdminToken: []
+      summary: Get a user's charges balance (admin)
+      tags:
+      - admin
+  /admin/users/{id}/credit:
+    post:
+      consumes:
+      - application/json
+      description: 'Mock top-up: adds charges to a user''s balance. Requires the admin
+        token. Idempotent per idempotencyKey.'
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: amount + idempotency key
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.creditRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - AdminToken: []
+      summary: Credit charges to a user (admin)
+      tags:
+      - admin
+  /auth/me:
+    get:
+      description: Returns the authenticated user's id and public key
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Current user
+      tags:
+      - auth
+  /balance:
+    get:
+      description: Returns the authenticated user's balance, reserved and available
+        charges
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Charges balance
+      tags:
+      - charges
   /firebase/status:
     get:
       description: Verifies the Firestore connection with a live round-trip and reports
@@ -40,4 +198,130 @@ paths:
       summary: Check service status
       tags:
       - system
+  /ton-proof/check:
+    post:
+      consumes:
+      - application/json
+      description: Verifies a ton_proof signature for a v5R1 wallet, resolves the
+        user by public key, and returns a session JWT
+      parameters:
+      - description: ton_proof payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/tonproof.Request'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify ton_proof and issue a JWT
+      tags:
+      - auth
+  /ton-proof/dev-sign:
+    get:
+      description: 'TEST ONLY — signs a ton_proof for a fixed test wallet from a payload,
+        so /ton-proof/check can be exercised without a real wallet. Enabled only when
+        DEV_SIGN=true. Response carries header X-Dev-Route: TO-BE-DELETED.'
+      parameters:
+      - description: payload from /ton-proof/payload
+        in: query
+        name: payload
+        required: true
+        type: string
+      - description: app domain (default localhost)
+        in: query
+        name: domain
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/tonproof.Request'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: '[TO BE DELETED] Dev-only ton_proof signer'
+      tags:
+      - dev
+  /ton-proof/payload:
+    get:
+      description: Returns a single-use payload (nonce) that the wallet must sign
+        for ton_proof login
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Generate ton_proof payload
+      tags:
+      - auth
+  /transactions:
+    get:
+      description: Returns the authenticated user's ledger entries, newest first
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Charges history
+      tags:
+      - charges
+securityDefinitions:
+  AdminToken:
+    in: header
+    name: X-Admin-Token
+    type: apiKey
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

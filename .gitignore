@@ -1,11 +1,28 @@
-.env
-*.env.local
+/main
+/*.exe
+/*.exe-
+/*.dll
+/*.so
+/*.dylib
+bin/
+dist/
 
-/tmp/
-/bin/
-main
-*.exe
+.env
+.env.local
+*.env
+
+.vscode/
+.idea/
+*.swp
+*~
+
 *.out
+*.test
+coverage.txt
+
 
 .DS_Store
-vendor/
+Thumbs.db
+
+/contracts
+/*.gitmodules

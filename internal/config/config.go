@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -22,6 +23,14 @@ type Config struct {
 	AuthProviderX509CertURL string
 	ClientX509CertURL       string
 	UniverseDomain          string
+	NonceTTLSeconds         int
+	AllowedDomains          []string
+	ProofValidSeconds       int
+	NetworkGlobalID         int
+	JWTSecret               string
+	JWTTTLSeconds           int
+	AdminToken              string
+	DevSignEnabled          bool
 }
 
 type serviceAccount struct {
@@ -54,6 +63,14 @@ func Load() (*Config, error) {
 		AuthProviderX509CertURL: getEnvDefault("AUTH_PROVIDER_X509_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs"),
 		ClientX509CertURL:       os.Getenv("CLIENT_X509_CERT_URL"),
 		UniverseDomain:          getEnvDefault("UNIVERSE_DOMAIN", "googleapis.com"),
+		NonceTTLSeconds:         getEnvInt("NONCE_TTL_SECONDS", 600),
+		AllowedDomains:          getEnvList("ALLOWED_DOMAINS"),
+		ProofValidSeconds:       getEnvInt("PROOF_VALID_SECONDS", 900),
+		NetworkGlobalID:         getEnvInt("TON_NETWORK_GLOBAL_ID", -3),
+		JWTSecret:               os.Getenv("JWT_SECRET"),
+		JWTTTLSeconds:           getEnvInt("JWT_TTL_SECONDS", 86400),
+		AdminToken:              os.Getenv("ADMIN_TOKEN"),
+		DevSignEnabled:          getEnvBool("DEV_SIGN", false),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -108,4 +125,37 @@ func getEnvDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	if v := os.Getenv(key); v != "" {
+		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
+			return b
+		}
+	}
+	return fallback
+}
+
+func getEnvList(key string) []string {
+	raw := os.Getenv(key)
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
