@@ -35,6 +35,15 @@ type Config struct {
 	TonAPIKey               string
 	RelayerMnemonic         string
 	TonConfigURL            string
+	MessageMaxBytes         int
+	MessageMinTTLSeconds    int
+	TonEmulateURL           string
+	PolicyMaxOutMessages    int
+	PolicyFeeCapNano        int64
+	PolicyNanoPerCharge     int64
+	PolicyMarginCharges     int64
+	PolicyMinCharge         int64
+	PolicyBlockedDest       []string
 }
 
 type serviceAccount struct {
@@ -79,6 +88,15 @@ func Load() (*Config, error) {
 		TonAPIKey:               os.Getenv("TON_API_KEY"),
 		RelayerMnemonic:         os.Getenv("RELAYER_MNEMONIC"),
 		TonConfigURL:            getEnvDefault("TON_CONFIG_URL", "https://ton.org/testnet-global.config.json"),
+		MessageMaxBytes:         getEnvInt("MESSAGE_MAX_BYTES", 8192),
+		MessageMinTTLSeconds:    getEnvInt("MESSAGE_MIN_TTL_SECONDS", 60),
+		TonEmulateURL:           getEnvDefault("TON_EMULATE_URL", "https://testnet.tonapi.io"),
+		PolicyMaxOutMessages:    getEnvInt("POLICY_MAX_OUT_MESSAGES", 4),
+		PolicyFeeCapNano:        getEnvInt64("POLICY_FEE_CAP_NANO", 1000000000),
+		PolicyNanoPerCharge:     getEnvInt64("POLICY_NANO_PER_CHARGE", 10000000),
+		PolicyMarginCharges:     getEnvInt64("POLICY_MARGIN_CHARGES", 1),
+		PolicyMinCharge:         getEnvInt64("POLICY_MIN_CHARGE", 1),
+		PolicyBlockedDest:       getEnvList("POLICY_BLOCKED_DESTINATIONS"),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -138,6 +156,15 @@ func getEnvDefault(key, fallback string) string {
 func getEnvInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func getEnvInt64(key string, fallback int64) int64 {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {
 			return n
 		}
 	}

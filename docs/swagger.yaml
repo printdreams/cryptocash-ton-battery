@@ -9,6 +9,20 @@ definitions:
       reason:
         type: string
     type: object
+  handler.emulateRequest:
+    properties:
+      boc:
+        type: string
+      ignoreSignature:
+        type: boolean
+    type: object
+  handler.walletEmulateRequest:
+    properties:
+      boc:
+        type: string
+      ignoreSignature:
+        type: boolean
+    type: object
   tonproof.Domain:
     properties:
       length_bytes:
@@ -163,6 +177,42 @@ paths:
       summary: Charges balance
       tags:
       - charges
+  /emulate:
+    post:
+      consumes:
+      - application/json
+      description: TEST ONLY — emulates a message BOC via tonapi and returns success,
+        total fees and destinations. Enabled only when DEV_SIGN=true.
+      parameters:
+      - description: message boc
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.emulateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: '[TO BE DELETED] Dev-only message emulation'
+      tags:
+      - dev
   /firebase/status:
     get:
       description: Verifies the Firestore connection with a live round-trip and reports
@@ -384,6 +434,45 @@ paths:
       summary: Charges history
       tags:
       - charges
+  /wallet/emulate:
+    post:
+      consumes:
+      - application/json
+      description: Runs static checks, emulation and policy over a message BOC and
+        returns Supported-By-Battery / Allowed-By-Battery / Reject-Reason plus the
+        charge cost
+      parameters:
+      - description: message boc
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.walletEmulateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Emulate a message and return the battery decision
+      tags:
+      - battery
 securityDefinitions:
   AdminToken:
     in: header

@@ -10,10 +10,13 @@ import (
 
 	"github.com/printdreams/cryptocash-ton-battery/internal/auth"
 	"github.com/printdreams/cryptocash-ton-battery/internal/config"
+	"github.com/printdreams/cryptocash-ton-battery/internal/emulate"
 	"github.com/printdreams/cryptocash-ton-battery/internal/firebase"
 	"github.com/printdreams/cryptocash-ton-battery/internal/handler"
 	"github.com/printdreams/cryptocash-ton-battery/internal/ledger"
+	"github.com/printdreams/cryptocash-ton-battery/internal/message"
 	"github.com/printdreams/cryptocash-ton-battery/internal/nonce"
+	"github.com/printdreams/cryptocash-ton-battery/internal/policy"
 	"github.com/printdreams/cryptocash-ton-battery/internal/relayer"
 	"github.com/printdreams/cryptocash-ton-battery/internal/ton"
 	"github.com/printdreams/cryptocash-ton-battery/internal/tonproof"
@@ -56,6 +59,7 @@ func main() {
 	jwtIssuer := auth.NewIssuer(cfg.JWTSecret, time.Duration(cfg.JWTTTLSeconds)*time.Second)
 
 	tonClient := ton.NewClient(cfg.TonEndpoint, cfg.TonAPIKey)
+	emulator := emulate.NewClient(cfg.TonEmulateURL, cfg.TonAPIKey)
 
 	rel, err := relayer.Load(cfg.RelayerMnemonic, int32(cfg.NetworkGlobalID))
 	if err != nil {
@@ -78,6 +82,19 @@ func main() {
 		}
 	}
 
+	msgCfg := message.Config{
+		MaxBytes:      cfg.MessageMaxBytes,
+		MinTTLSeconds: cfg.MessageMinTTLSeconds,
+	}
+	polCfg := policy.Config{
+		MaxOutMessages:      cfg.PolicyMaxOutMessages,
+		BlockedDestinations: cfg.PolicyBlockedDest,
+		FeeCapNano:          cfg.PolicyFeeCapNano,
+		NanoPerCharge:       cfg.PolicyNanoPerCharge,
+		MarginCharges:       cfg.PolicyMarginCharges,
+		MinCharge:           cfg.PolicyMinCharge,
+	}
+
 	r := chi.NewRouter()
 	handler.SetupRoutes(r, handler.Deps{
 		Firebase:      fb,
@@ -91,6 +108,9 @@ func main() {
 		Relayer:       rel,
 		Ton:           tonClient,
 		RelayerSender: relSender,
+		Emulator:      emulator,
+		MsgCfg:        msgCfg,
+		PolCfg:        polCfg,
 	})
 
 	log.Printf("Server running on port %s", cfg.Port)

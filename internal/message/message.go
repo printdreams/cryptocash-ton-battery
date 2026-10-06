@@ -1,0 +1,96 @@
+package message
+
+import (
+	"encoding/base64"
+	"errors"
+
+	"github.com/xssnick/tonutils-go/tvm/cell"
+)
+
+const authSignedInternal = 0x73696e74
+
+var (
+	ErrMalformed     = errors.New("malformed-message")
+	ErrTooLarge      = errors.New("message-too-large")
+	ErrUnsupportedOp = errors.New("unsupported-operation")
+	ErrTTLTooShort   = errors.New("ttl-too-short")
+)
+
+type Config struct {
+	MaxBytes      int
+	MinTTLSeconds int
+}
+
+type Parsed struct {
+	OpCode     uint32
+	WalletID   uint32
+	ValidUntil uint32
+	Seqno      uint32
+}
+
+func Check(bocBase64 string, cfg Config, now int64) (*Parsed, error) {
+	raw, err := base64.StdEncoding.DecodeString(bocBase64)
+	if err != nil {
+		return nil, ErrMalformed
+	}
+	if cfg.MaxBytes > 0 && len(raw) > cfg.MaxBytes {
+		return nil, ErrTooLarge
+	}
+
+	parsed, err := parseEnvelope(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.MinTTLSeconds > 0 && int64(parsed.ValidUntil)-now < int64(cfg.MinTTLSeconds) {
+		return nil, ErrTTLTooShort
+	}
+
+	return parsed, nil
+}
+
+func parseEnvelope(raw []byte) (p *Parsed, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			p = nil
+			err = ErrMalformed
+		}
+	}()
+
+	root, err := cell.FromBOC(raw)
+	if err != nil {
+		return nil, ErrMalformed
+	}
+	sl, err := root.BeginParse()
+	if err != nil {
+		return nil, ErrMalformed
+	}
+
+	op, err := sl.LoadUInt(32)
+	if err != nil {
+		return nil, ErrMalformed
+	}
+	if uint32(op) != authSignedInternal {
+		return nil, ErrUnsupportedOp
+	}
+
+	walletID, err := sl.LoadUInt(32)
+	if err != nil {
+		return nil, ErrMalformed
+	}
+	validUntil, err := sl.LoadUInt(32)
+	if err != nil {
+		return nil, ErrMalformed
+	}
+	seqno, err := sl.LoadUInt(32)
+	if err != nil {
+		return nil, ErrMalformed
+	}
+
+	return &Parsed{
+		OpCode:     uint32(op),
+		WalletID:   uint32(walletID),
+		ValidUntil: uint32(validUntil),
+		Seqno:      uint32(seqno),
+	}, nil
+}

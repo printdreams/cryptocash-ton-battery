@@ -194,6 +194,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/emulate": {
+            "post": {
+                "description": "TEST ONLY — emulates a message BOC via tonapi and returns success, total fees and destinations. Enabled only when DEV_SIGN=true.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dev"
+                ],
+                "summary": "[TO BE DELETED] Dev-only message emulation",
+                "parameters": [
+                    {
+                        "description": "message boc",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.emulateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/firebase/status": {
             "get": {
                 "description": "Verifies the Firestore connection with a live round-trip and reports whether Firebase is reachable",
@@ -516,6 +569,64 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/wallet/emulate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Runs static checks, emulation and policy over a message BOC and returns Supported-By-Battery / Allowed-By-Battery / Reject-Reason plus the charge cost",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "battery"
+                ],
+                "summary": "Emulate a message and return the battery decision",
+                "parameters": [
+                    {
+                        "description": "message boc",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.walletEmulateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -530,6 +641,28 @@ const docTemplate = `{
                 },
                 "reason": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.emulateRequest": {
+            "type": "object",
+            "properties": {
+                "boc": {
+                    "type": "string"
+                },
+                "ignoreSignature": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.walletEmulateRequest": {
+            "type": "object",
+            "properties": {
+                "boc": {
+                    "type": "string"
+                },
+                "ignoreSignature": {
+                    "type": "boolean"
                 }
             }
         },
