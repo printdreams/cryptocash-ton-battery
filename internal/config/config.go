@@ -31,6 +31,10 @@ type Config struct {
 	JWTTTLSeconds           int
 	AdminToken              string
 	DevSignEnabled          bool
+	TonEndpoint             string
+	TonAPIKey               string
+	RelayerMnemonic         string
+	TonConfigURL            string
 }
 
 type serviceAccount struct {
@@ -71,6 +75,10 @@ func Load() (*Config, error) {
 		JWTTTLSeconds:           getEnvInt("JWT_TTL_SECONDS", 86400),
 		AdminToken:              os.Getenv("ADMIN_TOKEN"),
 		DevSignEnabled:          getEnvBool("DEV_SIGN", false),
+		TonEndpoint:             getEnvDefault("TON_ENDPOINT", "https://testnet.toncenter.com"),
+		TonAPIKey:               os.Getenv("TON_API_KEY"),
+		RelayerMnemonic:         os.Getenv("RELAYER_MNEMONIC"),
+		TonConfigURL:            getEnvDefault("TON_CONFIG_URL", "https://ton.org/testnet-global.config.json"),
 	}
 
 	if err := cfg.validate(); err != nil {

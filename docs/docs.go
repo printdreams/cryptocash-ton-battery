@@ -245,6 +245,105 @@ const docTemplate = `{
                 }
             }
         },
+        "/relayer/dev-send": {
+            "post": {
+                "description": "TEST ONLY — makes the relayer send TON to an address (deploys the relayer on first send, pays gas). Enabled only when DEV_SIGN=true. Response carries header X-Dev-Route: TO-BE-DELETED.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dev"
+                ],
+                "summary": "[TO BE DELETED] Dev-only relayer send",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "destination address",
+                        "name": "to",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "amount in TON (default 0.05)",
+                        "name": "amount",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "optional comment",
+                        "name": "comment",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/relayer/status": {
+            "get": {
+                "description": "Shows the relayer wallet address and its on-chain balance and seqno (reads TON testnet)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "relayer"
+                ],
+                "summary": "Relayer status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/ton-proof/check": {
             "post": {
                 "description": "Verifies a ton_proof signature for a v5R1 wallet, resolves the user by public key, and returns a session JWT",

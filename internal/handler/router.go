@@ -11,20 +11,25 @@ import (
 	"github.com/printdreams/cryptocash-ton-battery/internal/firebase"
 	"github.com/printdreams/cryptocash-ton-battery/internal/ledger"
 	"github.com/printdreams/cryptocash-ton-battery/internal/nonce"
+	"github.com/printdreams/cryptocash-ton-battery/internal/relayer"
+	"github.com/printdreams/cryptocash-ton-battery/internal/ton"
 	"github.com/printdreams/cryptocash-ton-battery/internal/tonproof"
 	"github.com/printdreams/cryptocash-ton-battery/internal/user"
 	swagFiles "github.com/swaggo/http-swagger"
 )
 
 type Deps struct {
-	Firebase   *firebase.Clients
-	Nonces     *nonce.Store
-	Verifier   tonproof.Config
-	JWT        *auth.Issuer
-	Users      *user.Store
-	Ledger     *ledger.Store
-	AdminToken string
-	DevSign    bool
+	Firebase      *firebase.Clients
+	Nonces        *nonce.Store
+	Verifier      tonproof.Config
+	JWT           *auth.Issuer
+	Users         *user.Store
+	Ledger        *ledger.Store
+	AdminToken    string
+	DevSign       bool
+	Relayer       *relayer.Relayer
+	Ton           *ton.Client
+	RelayerSender *relayer.Sender
 }
 
 func SetupRoutes(r *chi.Mux, d Deps) {
@@ -44,8 +49,13 @@ func SetupRoutes(r *chi.Mux, d Deps) {
 	if d.DevSign {
 		devHandler := NewDevSignHandler(d.Verifier)
 		r.Get("/ton-proof/dev-sign", devHandler.Sign)
-		log.Printf("warning: DEV_SIGN enabled — /ton-proof/dev-sign is active (TO BE DELETED)")
+		relayerDev := NewRelayerDevHandler(d.RelayerSender)
+		r.Post("/relayer/dev-send", relayerDev.Send)
+		log.Printf("warning: DEV_SIGN enabled — /ton-proof/dev-sign and /relayer/dev-send are active (TO BE DELETED)")
 	}
+
+	relayerHandler := NewRelayerHandler(d.Relayer, d.Ton)
+	r.Get("/relayer/status", relayerHandler.Status)
 
 	accountHandler := NewAccountHandler(d.Users, d.Ledger)
 	r.Group(func(pr chi.Router) {

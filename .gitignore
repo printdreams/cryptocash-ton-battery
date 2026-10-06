@@ -25,4 +25,4 @@ coverage.txt
 Thumbs.db
 
 /contracts
-/*.gitmodules
+/*.gitmodulestmp/
