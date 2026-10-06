@@ -298,6 +298,73 @@ const docTemplate = `{
                 }
             }
         },
+        "/message": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Runs the battery decision, reserves charges, relays the user's signed message via the relayer and settles or releases the charges",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "battery"
+                ],
+                "summary": "Send a gasless message",
+                "parameters": [
+                    {
+                        "description": "message boc",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.sendRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/relayer/dev-send": {
             "post": {
                 "description": "TEST ONLY — makes the relayer send TON to an address (deploys the relayer on first send, pays gas). Enabled only when DEV_SIGN=true. Response carries header X-Dev-Route: TO-BE-DELETED.",
@@ -645,6 +712,17 @@ const docTemplate = `{
             }
         },
         "handler.emulateRequest": {
+            "type": "object",
+            "properties": {
+                "boc": {
+                    "type": "string"
+                },
+                "ignoreSignature": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.sendRequest": {
             "type": "object",
             "properties": {
                 "boc": {

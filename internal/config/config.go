@@ -44,6 +44,7 @@ type Config struct {
 	PolicyMarginCharges     int64
 	PolicyMinCharge         int64
 	PolicyBlockedDest       []string
+	RelayGasTON             string
 }
 
 type serviceAccount struct {
@@ -97,6 +98,7 @@ func Load() (*Config, error) {
 		PolicyMarginCharges:     getEnvInt64("POLICY_MARGIN_CHARGES", 1),
 		PolicyMinCharge:         getEnvInt64("POLICY_MIN_CHARGE", 1),
 		PolicyBlockedDest:       getEnvList("POLICY_BLOCKED_DESTINATIONS"),
+		RelayGasTON:             getEnvDefault("RELAY_GAS_TON", "0.1"),
 	}
 
 	if err := cfg.validate(); err != nil {

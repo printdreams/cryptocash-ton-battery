@@ -36,6 +36,7 @@ type Deps struct {
 	Emulator      *emulate.Client
 	MsgCfg        message.Config
 	PolCfg        policy.Config
+	RelayGasTON   string
 }
 
 func SetupRoutes(r *chi.Mux, d Deps) {
@@ -47,6 +48,9 @@ func SetupRoutes(r *chi.Mux, d Deps) {
 
 	fbHandler := NewFirebaseHandler(d.Firebase)
 	r.Get("/firebase/status", fbHandler.Status)
+
+	catalogHandler := NewCatalogHandler()
+	r.Get("/products", catalogHandler.Products)
 
 	tpHandler := NewTonProofHandler(d.Nonces, d.Verifier, d.JWT, d.Users)
 	r.Get("/ton-proof/payload", tpHandler.Payload)
@@ -74,6 +78,9 @@ func SetupRoutes(r *chi.Mux, d Deps) {
 
 		walletEmu := NewWalletEmulateHandler(d.Emulator, d.Ledger, d.MsgCfg, d.PolCfg)
 		pr.Post("/wallet/emulate", walletEmu.Emulate)
+
+		messageH := NewMessageHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.RelayGasTON)
+		pr.Post("/message", messageH.Send)
 	})
 
 	if d.AdminToken != "" {

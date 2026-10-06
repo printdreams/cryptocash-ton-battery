@@ -16,6 +16,13 @@ definitions:
       ignoreSignature:
         type: boolean
     type: object
+  handler.sendRequest:
+    properties:
+      boc:
+        type: string
+      ignoreSignature:
+        type: boolean
+    type: object
   handler.walletEmulateRequest:
     properties:
       boc:
@@ -248,6 +255,50 @@ paths:
       summary: Check service status
       tags:
       - system
+  /message:
+    post:
+      consumes:
+      - application/json
+      description: Runs the battery decision, reserves charges, relays the user's
+        signed message via the relayer and settles or releases the charges
+      parameters:
+      - description: message boc
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.sendRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Send a gasless message
+      tags:
+      - battery
   /relayer/dev-send:
     post:
       description: 'TEST ONLY — makes the relayer send TON to an address (deploys

@@ -111,6 +111,7 @@ func main() {
 		Emulator:      emulator,
 		MsgCfg:        msgCfg,
 		PolCfg:        polCfg,
+		RelayGasTON:   cfg.RelayGasTON,
 	})
 
 	log.Printf("Server running on port %s", cfg.Port)
