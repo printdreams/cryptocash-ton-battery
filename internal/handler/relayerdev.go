@@ -24,10 +24,10 @@ func NewRelayerDevHandler(s *relayer.Sender) *RelayerDevHandler {
 // @Param        to       query     string  true   "destination address"
 // @Param        amount   query     string  false  "amount in TON (default 0.05)"
 // @Param        comment  query     string  false  "optional comment"
-// @Success      200      {object}  map[string]interface{}
-// @Failure      400      {object}  map[string]string
-// @Failure      502      {object}  map[string]string
-// @Failure      503      {object}  map[string]string
+// @Success      200      {object}  handler.RelayerDevSendResponse
+// @Failure      400      {object}  handler.ErrorResponse
+// @Failure      502      {object}  handler.ErrorResponse
+// @Failure      503      {object}  handler.ErrorResponse
 // @Router       /relayer/dev-send [post]
 func (h *RelayerDevHandler) Send(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

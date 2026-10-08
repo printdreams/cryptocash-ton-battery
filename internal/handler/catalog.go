@@ -17,7 +17,7 @@ func NewCatalogHandler() *CatalogHandler {
 // @Description  Returns the available charge packs (mock catalog until real IAP)
 // @Tags         charges
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}
+// @Success      200  {object}  handler.ProductsResponse
 // @Router       /products [get]
 func (h *CatalogHandler) Products(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

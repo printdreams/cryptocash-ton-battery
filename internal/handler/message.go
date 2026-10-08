@@ -10,27 +10,32 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/printdreams/cryptocash-ton-battery/internal/abuse"
 	"github.com/printdreams/cryptocash-ton-battery/internal/auth"
 	"github.com/printdreams/cryptocash-ton-battery/internal/emulate"
 	"github.com/printdreams/cryptocash-ton-battery/internal/ledger"
 	"github.com/printdreams/cryptocash-ton-battery/internal/message"
 	"github.com/printdreams/cryptocash-ton-battery/internal/policy"
+	"github.com/printdreams/cryptocash-ton-battery/internal/price"
 	"github.com/printdreams/cryptocash-ton-battery/internal/relayer"
 	"github.com/printdreams/cryptocash-ton-battery/internal/user"
 )
 
 type MessageHandler struct {
-	Emulator *emulate.Client
-	Ledger   *ledger.Store
-	Users    *user.Store
-	Sender   *relayer.Sender
-	MsgCfg   message.Config
-	PolCfg   policy.Config
-	GasTON   string
+	Emulator   *emulate.Client
+	Ledger     *ledger.Store
+	Users      *user.Store
+	Sender     *relayer.Sender
+	MsgCfg     message.Config
+	PolCfg     policy.Config
+	GasTON     string
+	Price      *price.Oracle
+	Limiter    *abuse.Limiter
+	Killswitch *abuse.Killswitch
 }
 
-func NewMessageHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasTON string) *MessageHandler {
-	return &MessageHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasTON: gasTON}
+func NewMessageHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasTON string, pr *price.Oracle, lim *abuse.Limiter, ks *abuse.Killswitch) *MessageHandler {
+	return &MessageHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasTON: gasTON, Price: pr, Limiter: lim, Killswitch: ks}
 }
 
 type sendRequest struct {
@@ -46,10 +51,10 @@ type sendRequest struct {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        body  body      sendRequest  true  "message boc"
-// @Success      200   {object}  map[string]interface{}
-// @Failure      400   {object}  map[string]string
-// @Failure      401   {object}  map[string]string
-// @Failure      502   {object}  map[string]string
+// @Success      200   {object}  handler.MessageSentResponse
+// @Failure      400   {object}  handler.ErrorResponse
+// @Failure      401   {object}  handler.ErrorResponse
+// @Failure      502   {object}  handler.ErrorResponse
 // @Router       /message [post]
 func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -57,6 +62,11 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
 	if userID == "" {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	if reason := abuseReject(r, userID, h.Killswitch, h.Limiter); reason != "" {
+		rejectAbuse(w, reason)
 		return
 	}
 
@@ -91,7 +101,14 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 		facts.AvailableCharges = acc.Available()
 	}
 
-	d := policy.Evaluate(facts, h.PolCfg)
+	polCfg := h.PolCfg
+	if h.Price != nil {
+		if n := h.Price.NanoPerCharge(r.Context()); n > 0 {
+			polCfg.NanoPerCharge = n
+		}
+	}
+
+	d := policy.Evaluate(facts, polCfg)
 
 	w.Header().Set("Supported-By-Battery", strconv.FormatBool(d.SupportedByBattery))
 	w.Header().Set("Allowed-By-Battery", strconv.FormatBool(d.AllowedByBattery))

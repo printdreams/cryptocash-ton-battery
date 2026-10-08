@@ -23,8 +23,8 @@ func NewRelayerHandler(r *relayer.Relayer, t *ton.Client) *RelayerHandler {
 // @Description  Shows the relayer wallet address and its on-chain balance and seqno (reads TON testnet)
 // @Tags         relayer
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}
-// @Failure      503  {object}  map[string]string
+// @Success      200  {object}  handler.RelayerStatusResponse
+// @Failure      503  {object}  handler.ErrorResponse
 // @Router       /relayer/status [get]
 func (h *RelayerHandler) Status(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

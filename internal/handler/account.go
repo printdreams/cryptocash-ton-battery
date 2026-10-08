@@ -23,8 +23,8 @@ func NewAccountHandler(users *user.Store, l *ledger.Store) *AccountHandler {
 // @Tags         auth
 // @Produce      json
 // @Security     BearerAuth
-// @Success      200  {object}  map[string]interface{}
-// @Failure      401  {object}  map[string]string
+// @Success      200  {object}  handler.MeResponse
+// @Failure      401  {object}  handler.ErrorResponse
 // @Router       /auth/me [get]
 func (h *AccountHandler) Me(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -50,8 +50,8 @@ func (h *AccountHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Tags         charges
 // @Produce      json
 // @Security     BearerAuth
-// @Success      200  {object}  map[string]interface{}
-// @Failure      401  {object}  map[string]string
+// @Success      200  {object}  handler.BalanceResponse
+// @Failure      401  {object}  handler.ErrorResponse
 // @Router       /balance [get]
 func (h *AccountHandler) Balance(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -79,8 +79,8 @@ func (h *AccountHandler) Balance(w http.ResponseWriter, r *http.Request) {
 // @Tags         charges
 // @Produce      json
 // @Security     BearerAuth
-// @Success      200  {object}  map[string]interface{}
-// @Failure      401  {object}  map[string]string
+// @Success      200  {object}  handler.TransactionsResponse
+// @Failure      401  {object}  handler.ErrorResponse
 // @Router       /transactions [get]
 func (h *AccountHandler) Transactions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

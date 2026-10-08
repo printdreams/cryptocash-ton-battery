@@ -24,8 +24,8 @@ func NewFirebaseHandler(fb *firebase.Clients) *FirebaseHandler {
 // @Description  Verifies the Firestore connection with a live round-trip and reports whether Firebase is reachable
 // @Tags         firebase
 // @Produce      json
-// @Success      200  {object}  map[string]interface{}
-// @Failure      503  {object}  map[string]interface{}
+// @Success      200  {object}  handler.FirebaseStatusResponse
+// @Failure      503  {object}  handler.FirebaseStatusResponse
 // @Router       /firebase/status [get]
 func (h *FirebaseHandler) Status(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

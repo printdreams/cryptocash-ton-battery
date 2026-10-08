@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/google/uuid"
+	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -240,6 +241,65 @@ func (s *Store) apply(ctx context.Context, userID string, amount int64, op OpTyp
 		return nil, err
 	}
 	return result, nil
+}
+
+type Report struct {
+	UserID           string
+	AccountBalance   int64
+	AccountReserved  int64
+	ComputedBalance  int64
+	ComputedReserved int64
+	Consistent       bool
+}
+
+func deltaFor(op OpType, amount int64) (int64, int64) {
+	switch op {
+	case OpCredit:
+		return amount, 0
+	case OpReserve:
+		return 0, amount
+	case OpSettle:
+		return -amount, -amount
+	case OpRelease:
+		return 0, -amount
+	}
+	return 0, 0
+}
+
+func (s *Store) Reconcile(ctx context.Context, userID string) (*Report, error) {
+	acc, err := s.Balance(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var computedBalance, computedReserved int64
+	iter := s.fs.Collection(accountsCollection).Doc(userID).Collection("entries").Documents(ctx)
+	defer iter.Stop()
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		var e Entry
+		if err := doc.DataTo(&e); err != nil {
+			return nil, err
+		}
+		db, dr := deltaFor(OpType(e.Op), e.Amount)
+		computedBalance += db
+		computedReserved += dr
+	}
+
+	return &Report{
+		UserID:           userID,
+		AccountBalance:   acc.Balance,
+		AccountReserved:  acc.Reserved,
+		ComputedBalance:  computedBalance,
+		ComputedReserved: computedReserved,
+		Consistent:       computedBalance == acc.Balance && computedReserved == acc.Reserved,
+	}, nil
 }
 
 func readBalances(snap *firestore.DocumentSnapshot) (int64, int64) {

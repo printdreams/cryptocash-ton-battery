@@ -27,8 +27,8 @@ func NewTonProofHandler(n *nonce.Store, verifier tonproof.Config, jwt *auth.Issu
 // @Description  Returns a single-use payload (nonce) that the wallet must sign for ton_proof login
 // @Tags         auth
 // @Produce      json
-// @Success      200  {object}  map[string]string
-// @Failure      500  {object}  map[string]string
+// @Success      200  {object}  handler.PayloadResponse
+// @Failure      500  {object}  handler.ErrorResponse
 // @Router       /ton-proof/payload [get]
 func (h *TonProofHandler) Payload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -54,10 +54,10 @@ func (h *TonProofHandler) Payload(w http.ResponseWriter, r *http.Request) {
 // @Accept       json
 // @Produce      json
 // @Param        body  body      tonproof.Request  true  "ton_proof payload"
-// @Success      200   {object}  map[string]interface{}
-// @Failure      400   {object}  map[string]string
-// @Failure      401   {object}  map[string]string
-// @Failure      500   {object}  map[string]string
+// @Success      200   {object}  handler.TonProofCheckResponse
+// @Failure      400   {object}  handler.ErrorResponse
+// @Failure      401   {object}  handler.ErrorResponse
+// @Failure      500   {object}  handler.ErrorResponse
 // @Router       /ton-proof/check [post]
 func (h *TonProofHandler) Check(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

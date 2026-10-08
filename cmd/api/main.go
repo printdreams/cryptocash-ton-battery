@@ -4,10 +4,15 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/printdreams/cryptocash-ton-battery/internal/abuse"
+	"github.com/printdreams/cryptocash-ton-battery/internal/audit"
 	"github.com/printdreams/cryptocash-ton-battery/internal/auth"
 	"github.com/printdreams/cryptocash-ton-battery/internal/config"
 	"github.com/printdreams/cryptocash-ton-battery/internal/emulate"
@@ -17,6 +22,8 @@ import (
 	"github.com/printdreams/cryptocash-ton-battery/internal/message"
 	"github.com/printdreams/cryptocash-ton-battery/internal/nonce"
 	"github.com/printdreams/cryptocash-ton-battery/internal/policy"
+	"github.com/printdreams/cryptocash-ton-battery/internal/price"
+	"github.com/printdreams/cryptocash-ton-battery/internal/print"
 	"github.com/printdreams/cryptocash-ton-battery/internal/relayer"
 	"github.com/printdreams/cryptocash-ton-battery/internal/ton"
 	"github.com/printdreams/cryptocash-ton-battery/internal/tonproof"
@@ -95,6 +102,26 @@ func main() {
 		MinCharge:           cfg.PolicyMinCharge,
 	}
 
+	priceOracle := price.NewOracle(
+		cfg.PriceBaseURL,
+		cfg.PriceCoinID,
+		cfg.PriceCurrency,
+		cfg.PriceCentsPerCharge,
+		cfg.PolicyNanoPerCharge,
+		time.Duration(cfg.PriceTTLSeconds)*time.Second,
+	)
+
+	printStore := print.NewStore(fb.Firestore)
+	printCfg := print.Config{
+		BufferBaseNano: cfg.PrintBufferBaseNano,
+		MarginBPS:      cfg.PrintMarginBPS,
+		QuoteTTL:       time.Duration(cfg.PrintQuoteTTLSeconds) * time.Second,
+	}
+
+	limiter := abuse.NewLimiter(cfg.RateLimitPerMin, cfg.VelocityPerDay)
+	killswitch := abuse.NewKillswitch(fb.Firestore, cfg.BatteryPaused, time.Duration(cfg.KillswitchTTLSeconds)*time.Second)
+	auditStore := audit.NewStore(fb.Firestore)
+
 	r := chi.NewRouter()
 	handler.SetupRoutes(r, handler.Deps{
 		Firebase:      fb,
@@ -112,10 +139,38 @@ func main() {
 		MsgCfg:        msgCfg,
 		PolCfg:        polCfg,
 		RelayGasTON:   cfg.RelayGasTON,
+		Price:         priceOracle,
+		PrintStore:    printStore,
+		PrintCfg:      printCfg,
+		Limiter:       limiter,
+		Killswitch:    killswitch,
+		Audit:         auditStore,
 	})
 
-	log.Printf("Server running on port %s", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
-		log.Fatal(err)
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      180 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
+	go func() {
+		log.Printf("Server running on port %s", cfg.Port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server: %v", err)
+		}
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop
+
+	log.Printf("shutting down...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("shutdown: %v", err)
 	}
 }

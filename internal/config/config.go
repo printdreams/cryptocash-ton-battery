@@ -45,6 +45,18 @@ type Config struct {
 	PolicyMinCharge         int64
 	PolicyBlockedDest       []string
 	RelayGasTON             string
+	PriceBaseURL            string
+	PriceCoinID             string
+	PriceCurrency           string
+	PriceCentsPerCharge     int64
+	PriceTTLSeconds         int
+	PrintBufferBaseNano     int64
+	PrintMarginBPS          int64
+	PrintQuoteTTLSeconds    int
+	RateLimitPerMin         int
+	VelocityPerDay          int
+	BatteryPaused           bool
+	KillswitchTTLSeconds    int
 }
 
 type serviceAccount struct {
@@ -99,6 +111,18 @@ func Load() (*Config, error) {
 		PolicyMinCharge:         getEnvInt64("POLICY_MIN_CHARGE", 1),
 		PolicyBlockedDest:       getEnvList("POLICY_BLOCKED_DESTINATIONS"),
 		RelayGasTON:             getEnvDefault("RELAY_GAS_TON", "0.1"),
+		PriceBaseURL:            getEnvDefault("PRICE_BASE_URL", "https://api.coingecko.com"),
+		PriceCoinID:             getEnvDefault("PRICE_COIN_ID", "the-open-network"),
+		PriceCurrency:           getEnvDefault("PRICE_CURRENCY", "usd"),
+		PriceCentsPerCharge:     getEnvInt64("PRICE_CENTS_PER_CHARGE", 1),
+		PriceTTLSeconds:         getEnvInt("PRICE_TTL_SECONDS", 300),
+		PrintBufferBaseNano:     getEnvInt64("PRINT_BUFFER_BASE_NANO", 50000000),
+		PrintMarginBPS:          getEnvInt64("PRINT_MARGIN_BPS", 15000),
+		PrintQuoteTTLSeconds:    getEnvInt("PRINT_QUOTE_TTL_SECONDS", 300),
+		RateLimitPerMin:         getEnvInt("RATE_LIMIT_PER_MIN", 30),
+		VelocityPerDay:          getEnvInt("VELOCITY_PER_DAY", 500),
+		BatteryPaused:           getEnvBool("BATTERY_PAUSED", false),
+		KillswitchTTLSeconds:    getEnvInt("KILLSWITCH_TTL_SECONDS", 10),
 	}
 
 	if err := cfg.validate(); err != nil {

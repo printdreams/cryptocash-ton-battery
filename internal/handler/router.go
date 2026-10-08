@@ -7,6 +7,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	_ "github.com/printdreams/cryptocash-ton-battery/docs"
+	"github.com/printdreams/cryptocash-ton-battery/internal/abuse"
+	"github.com/printdreams/cryptocash-ton-battery/internal/audit"
 	"github.com/printdreams/cryptocash-ton-battery/internal/auth"
 	"github.com/printdreams/cryptocash-ton-battery/internal/emulate"
 	"github.com/printdreams/cryptocash-ton-battery/internal/firebase"
@@ -14,6 +16,8 @@ import (
 	"github.com/printdreams/cryptocash-ton-battery/internal/message"
 	"github.com/printdreams/cryptocash-ton-battery/internal/nonce"
 	"github.com/printdreams/cryptocash-ton-battery/internal/policy"
+	"github.com/printdreams/cryptocash-ton-battery/internal/price"
+	"github.com/printdreams/cryptocash-ton-battery/internal/print"
 	"github.com/printdreams/cryptocash-ton-battery/internal/relayer"
 	"github.com/printdreams/cryptocash-ton-battery/internal/ton"
 	"github.com/printdreams/cryptocash-ton-battery/internal/tonproof"
@@ -37,6 +41,12 @@ type Deps struct {
 	MsgCfg        message.Config
 	PolCfg        policy.Config
 	RelayGasTON   string
+	Price         *price.Oracle
+	PrintStore    *print.Store
+	PrintCfg      print.Config
+	Limiter       *abuse.Limiter
+	Killswitch    *abuse.Killswitch
+	Audit         *audit.Store
 }
 
 func SetupRoutes(r *chi.Mux, d Deps) {
@@ -51,6 +61,9 @@ func SetupRoutes(r *chi.Mux, d Deps) {
 
 	catalogHandler := NewCatalogHandler()
 	r.Get("/products", catalogHandler.Products)
+
+	priceHandler := NewPriceHandler(d.Price)
+	r.Get("/price", priceHandler.Price)
 
 	tpHandler := NewTonProofHandler(d.Nonces, d.Verifier, d.JWT, d.Users)
 	r.Get("/ton-proof/payload", tpHandler.Payload)
@@ -76,19 +89,27 @@ func SetupRoutes(r *chi.Mux, d Deps) {
 		pr.Get("/balance", accountHandler.Balance)
 		pr.Get("/transactions", accountHandler.Transactions)
 
-		walletEmu := NewWalletEmulateHandler(d.Emulator, d.Ledger, d.MsgCfg, d.PolCfg)
+		walletEmu := NewWalletEmulateHandler(d.Emulator, d.Ledger, d.MsgCfg, d.PolCfg, d.Price)
 		pr.Post("/wallet/emulate", walletEmu.Emulate)
 
-		messageH := NewMessageHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.RelayGasTON)
+		messageH := NewMessageHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.RelayGasTON, d.Price, d.Limiter, d.Killswitch)
 		pr.Post("/message", messageH.Send)
+
+		printH := NewPrintHandler(d.PrintStore, d.Ledger, d.RelayerSender, d.Price, d.PolCfg, d.PrintCfg, d.Limiter, d.Killswitch)
+		pr.Post("/print/quote", printH.Quote)
+		pr.Post("/print/execute", printH.Execute)
+		pr.Get("/print/{id}", printH.Status)
 	})
 
 	if d.AdminToken != "" {
-		adminHandler := NewAdminHandler(d.Ledger)
+		adminHandler := NewAdminHandler(d.Ledger, d.Killswitch, d.Audit)
 		r.Group(func(ar chi.Router) {
 			ar.Use(AdminAuth(d.AdminToken))
 			ar.Post("/admin/users/{id}/credit", adminHandler.Credit)
 			ar.Get("/admin/users/{id}", adminHandler.Balance)
+			ar.Post("/admin/killswitch", adminHandler.SetKillswitch)
+			ar.Get("/admin/killswitch", adminHandler.GetKillswitch)
+			ar.Get("/admin/users/{id}/reconcile", adminHandler.Reconcile)
 		})
 	} else {
 		log.Printf("warning: ADMIN_TOKEN not set — admin routes disabled")

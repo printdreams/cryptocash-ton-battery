@@ -28,7 +28,7 @@ func NewDevSignHandler(verifier tonproof.Config) *DevSignHandler {
 // @Param        payload  query     string  true   "payload from /ton-proof/payload"
 // @Param        domain   query     string  false  "app domain (default localhost)"
 // @Success      200      {object}  tonproof.Request
-// @Failure      400      {object}  map[string]string
+// @Failure      400      {object}  handler.ErrorResponse
 // @Router       /ton-proof/dev-sign [get]
 func (h *DevSignHandler) Sign(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

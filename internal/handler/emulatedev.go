@@ -29,9 +29,9 @@ type emulateRequest struct {
 // @Accept       json
 // @Produce      json
 // @Param        body  body      emulateRequest  true  "message boc"
-// @Success      200   {object}  map[string]interface{}
-// @Failure      400   {object}  map[string]string
-// @Failure      502   {object}  map[string]string
+// @Success      200   {object}  handler.EmulateResponse
+// @Failure      400   {object}  handler.ErrorResponse
+// @Failure      502   {object}  handler.ErrorResponse
 // @Router       /emulate [post]
 func (h *EmulateDevHandler) Emulate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

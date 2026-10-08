@@ -1,5 +1,243 @@
 basePath: /
 definitions:
+  handler.AdminCreditResponse:
+    properties:
+      available:
+        type: integer
+      balance:
+        type: integer
+      entryId:
+        type: string
+      idempotent:
+        type: boolean
+      reserved:
+        type: integer
+      userId:
+        type: string
+    type: object
+  handler.BalanceResponse:
+    properties:
+      available:
+        type: integer
+      balance:
+        type: integer
+      reserved:
+        type: integer
+      userId:
+        type: string
+    type: object
+  handler.DecisionResponse:
+    properties:
+      allowed:
+        type: boolean
+      charge:
+        type: integer
+      rejectReason:
+        type: string
+      supported:
+        type: boolean
+    type: object
+  handler.EmulateResponse:
+    properties:
+      destinations:
+        items:
+          type: string
+        type: array
+      outMessages:
+        type: integer
+      success:
+        type: boolean
+      totalFeesNano:
+        type: integer
+    type: object
+  handler.EntryDTO:
+    properties:
+      amount:
+        type: integer
+      balanceAfter:
+        type: integer
+      createdAt:
+        type: string
+      id:
+        type: string
+      op:
+        type: string
+      reason:
+        type: string
+      reservedAfter:
+        type: integer
+    type: object
+  handler.ErrorResponse:
+    properties:
+      detail:
+        type: string
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  handler.FirebaseStatusResponse:
+    properties:
+      connected:
+        type: boolean
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  handler.HealthResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  handler.KillswitchResponse:
+    properties:
+      paused:
+        type: boolean
+    type: object
+  handler.MeResponse:
+    properties:
+      publicKey:
+        type: string
+      userId:
+        type: string
+    type: object
+  handler.MessageSentResponse:
+    properties:
+      charge:
+        type: integer
+      status:
+        type: string
+      txHash:
+        type: string
+    type: object
+  handler.PayloadResponse:
+    properties:
+      payload:
+        type: string
+    type: object
+  handler.PrintExecuteResponse:
+    properties:
+      charge:
+        type: integer
+      quoteId:
+        type: string
+      status:
+        type: string
+      txHash:
+        type: string
+    type: object
+  handler.PrintQuoteResponse:
+    properties:
+      bufferTON:
+        type: string
+      charge:
+        type: integer
+      expiresAt:
+        type: integer
+      quoteId:
+        type: string
+    type: object
+  handler.PrintStatusResponse:
+    properties:
+      bufferTON:
+        type: string
+      charge:
+        type: integer
+      quoteId:
+        type: string
+      status:
+        type: string
+      toAddress:
+        type: string
+      txHash:
+        type: string
+    type: object
+  handler.ProductDTO:
+    properties:
+      charges:
+        type: integer
+      id:
+        type: string
+      price:
+        type: string
+    type: object
+  handler.ProductsResponse:
+    properties:
+      products:
+        items:
+          $ref: '#/definitions/handler.ProductDTO'
+        type: array
+    type: object
+  handler.ReconcileResponse:
+    properties:
+      accountBalance:
+        type: integer
+      accountReserved:
+        type: integer
+      computedBalance:
+        type: integer
+      computedReserved:
+        type: integer
+      consistent:
+        type: boolean
+      userId:
+        type: string
+    type: object
+  handler.RelayerDevSendResponse:
+    properties:
+      amount:
+        type: string
+      explorer:
+        type: string
+      from:
+        type: string
+      to:
+        type: string
+      txHash:
+        type: string
+    type: object
+  handler.RelayerStatusResponse:
+    properties:
+      address:
+        type: string
+      balanceNano:
+        type: integer
+      deployed:
+        type: boolean
+      error:
+        type: string
+      online:
+        type: boolean
+      seqno:
+        type: integer
+    type: object
+  handler.TonProofCheckResponse:
+    properties:
+      address:
+        type: string
+      expiresAt:
+        type: integer
+      newUser:
+        type: boolean
+      publicKey:
+        type: string
+      token:
+        type: string
+      userId:
+        type: string
+    type: object
+  handler.TransactionsResponse:
+    properties:
+      transactions:
+        items:
+          $ref: '#/definitions/handler.EntryDTO'
+        type: array
+      userId:
+        type: string
+    type: object
   handler.creditRequest:
     properties:
       amount:
@@ -16,6 +254,21 @@ definitions:
       ignoreSignature:
         type: boolean
     type: object
+  handler.killswitchRequest:
+    properties:
+      paused:
+        type: boolean
+    type: object
+  handler.printExecuteRequest:
+    properties:
+      quoteId:
+        type: string
+    type: object
+  handler.printQuoteRequest:
+    properties:
+      toAddress:
+        type: string
+    type: object
   handler.sendRequest:
     properties:
       boc:
@@ -29,6 +282,19 @@ definitions:
         type: string
       ignoreSignature:
         type: boolean
+    type: object
+  price.Quote:
+    properties:
+      centsPerCharge:
+        type: integer
+      currency:
+        type: string
+      fallback:
+        type: boolean
+      nanoPerCharge:
+        type: integer
+      tonPrice:
+        type: number
     type: object
   tonproof.Domain:
     properties:
@@ -67,6 +333,48 @@ info:
   title: Battery implementation for TON network
   version: "1.0"
 paths:
+  /admin/killswitch:
+    get:
+      description: Returns whether the battery is paused. Requires the admin token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.KillswitchResponse'
+      security:
+      - AdminToken: []
+      summary: Get the battery kill switch (admin)
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Pauses or resumes all sends and prints. Requires the admin token.
+      parameters:
+      - description: paused flag
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.killswitchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.KillswitchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - AdminToken: []
+      summary: Set the battery kill switch (admin)
+      tags:
+      - admin
   /admin/users/{id}:
     get:
       description: Returns balance, reserved and available charges for a user. Requires
@@ -83,14 +391,11 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.BalanceResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       security:
       - AdminToken: []
       summary: Get a user's charges balance (admin)
@@ -120,23 +425,44 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.AdminCreditResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       security:
       - AdminToken: []
       summary: Credit charges to a user (admin)
+      tags:
+      - admin
+  /admin/users/{id}/reconcile:
+    get:
+      description: Recomputes balance and reserved from the ledger entries and compares
+        to the account. Requires the admin token.
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ReconcileResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - AdminToken: []
+      summary: Reconcile a user's ledger (admin)
       tags:
       - admin
   /auth/me:
@@ -148,14 +474,11 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.MeResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Current user
@@ -171,14 +494,11 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.BalanceResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Charges balance
@@ -203,20 +523,15 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.EmulateResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: '[TO BE DELETED] Dev-only message emulation'
       tags:
       - dev
@@ -230,13 +545,11 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.FirebaseStatusResponse'
         "503":
           description: Service Unavailable
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.FirebaseStatusResponse'
       summary: Firebase connection status
       tags:
       - firebase
@@ -249,9 +562,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.HealthResponse'
       summary: Check service status
       tags:
       - system
@@ -274,31 +585,154 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.MessageSentResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Send a gasless message
       tags:
       - battery
+  /price:
+    get:
+      description: Returns the live TON price and the resulting nano-per-charge used
+        for charge computation
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/price.Quote'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Current charge pricing
+      tags:
+      - charges
+  /print/{id}:
+    get:
+      description: Returns the status of a print job
+      parameters:
+      - description: print job id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.PrintStatusResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Print job status
+      tags:
+      - print
+  /print/execute:
+    post:
+      consumes:
+      - application/json
+      description: Reserves charges, sends the buffer to the new wallet (buffer-first),
+        settles or releases on result
+      parameters:
+      - description: quote id
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.printExecuteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.PrintExecuteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Execute a printed wallet
+      tags:
+      - print
+  /print/quote:
+    post:
+      consumes:
+      - application/json
+      description: Computes the buffer and charge cost for printing a new wallet and
+        stores the quote
+      parameters:
+      - description: destination address
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.printQuoteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.PrintQuoteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Quote a printed (gift) wallet
+      tags:
+      - print
+  /products:
+    get:
+      description: Returns the available charge packs (mock catalog until real IAP)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ProductsResponse'
+      summary: Charge packs catalog
+      tags:
+      - charges
   /relayer/dev-send:
     post:
       description: 'TEST ONLY — makes the relayer send TON to an address (deploys
@@ -324,26 +758,19 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.RelayerDevSendResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
         "503":
           description: Service Unavailable
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: '[TO BE DELETED] Dev-only relayer send'
       tags:
       - dev
@@ -357,14 +784,11 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.RelayerStatusResponse'
         "503":
           description: Service Unavailable
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: Relayer status
       tags:
       - relayer
@@ -387,26 +811,19 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.TonProofCheckResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: Verify ton_proof and issue a JWT
       tags:
       - auth
@@ -435,9 +852,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: '[TO BE DELETED] Dev-only ton_proof signer'
       tags:
       - dev
@@ -451,15 +866,11 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.PayloadResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: Generate ton_proof payload
       tags:
       - auth
@@ -472,14 +883,11 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.TransactionsResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Charges history
@@ -505,20 +913,15 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.DecisionResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/handler.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Emulate a message and return the battery decision

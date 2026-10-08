@@ -8,15 +8,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/printdreams/cryptocash-ton-battery/internal/abuse"
+	"github.com/printdreams/cryptocash-ton-battery/internal/audit"
 	"github.com/printdreams/cryptocash-ton-battery/internal/ledger"
 )
 
 type AdminHandler struct {
-	Ledger *ledger.Store
+	Ledger     *ledger.Store
+	Killswitch *abuse.Killswitch
+	Audit      *audit.Store
 }
 
-func NewAdminHandler(l *ledger.Store) *AdminHandler {
-	return &AdminHandler{Ledger: l}
+func NewAdminHandler(l *ledger.Store, ks *abuse.Killswitch, au *audit.Store) *AdminHandler {
+	return &AdminHandler{Ledger: l, Killswitch: ks, Audit: au}
 }
 
 type creditRequest struct {
@@ -34,9 +38,9 @@ type creditRequest struct {
 // @Param        id    path      string         true  "user id"
 // @Param        body  body      creditRequest  true  "amount + idempotency key"
 // @Security     AdminToken
-// @Success      200   {object}  map[string]interface{}
-// @Failure      400   {object}  map[string]string
-// @Failure      401   {object}  map[string]string
+// @Success      200   {object}  handler.AdminCreditResponse
+// @Failure      400   {object}  handler.ErrorResponse
+// @Failure      401   {object}  handler.ErrorResponse
 // @Router       /admin/users/{id}/credit [post]
 func (h *AdminHandler) Credit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -74,6 +78,12 @@ func (h *AdminHandler) Credit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.Audit.Append(r.Context(), "credit", "admin", map[string]interface{}{
+		"userId":         userID,
+		"amount":         req.Amount,
+		"idempotencyKey": req.IdempotencyKey,
+	})
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"userId":     res.Account.UserID,
 		"balance":    res.Account.Balance,
@@ -84,6 +94,90 @@ func (h *AdminHandler) Credit(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type killswitchRequest struct {
+	Paused bool `json:"paused"`
+}
+
+// SetKillswitch godoc
+// @Summary      Set the battery kill switch (admin)
+// @Description  Pauses or resumes all sends and prints. Requires the admin token.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        body  body      killswitchRequest  true  "paused flag"
+// @Security     AdminToken
+// @Success      200   {object}  handler.KillswitchResponse
+// @Failure      400   {object}  handler.ErrorResponse
+// @Router       /admin/killswitch [post]
+func (h *AdminHandler) SetKillswitch(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var req killswitchRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4*1024)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "malformed-request"})
+		return
+	}
+	if h.Killswitch == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "killswitch-not-configured"})
+		return
+	}
+	if err := h.Killswitch.SetPaused(r.Context(), req.Paused); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "killswitch-failed"})
+		return
+	}
+
+	h.Audit.Append(r.Context(), "killswitch", "admin", map[string]interface{}{"paused": req.Paused})
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"paused": req.Paused})
+}
+
+// GetKillswitch godoc
+// @Summary      Get the battery kill switch (admin)
+// @Description  Returns whether the battery is paused. Requires the admin token.
+// @Tags         admin
+// @Produce      json
+// @Security     AdminToken
+// @Success      200  {object}  handler.KillswitchResponse
+// @Router       /admin/killswitch [get]
+func (h *AdminHandler) GetKillswitch(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	paused := false
+	if h.Killswitch != nil {
+		paused = h.Killswitch.Paused(r.Context())
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"paused": paused})
+}
+
+// Reconcile godoc
+// @Summary      Reconcile a user's ledger (admin)
+// @Description  Recomputes balance and reserved from the ledger entries and compares to the account. Requires the admin token.
+// @Tags         admin
+// @Produce      json
+// @Param        id  path      string  true  "user id"
+// @Security     AdminToken
+// @Success      200  {object}  handler.ReconcileResponse
+// @Failure      401  {object}  handler.ErrorResponse
+// @Router       /admin/users/{id}/reconcile [get]
+func (h *AdminHandler) Reconcile(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	userID := chi.URLParam(r, "id")
+	rep, err := h.Ledger.Reconcile(r.Context(), userID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "ledger-failed"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"userId":           rep.UserID,
+		"accountBalance":   rep.AccountBalance,
+		"accountReserved":  rep.AccountReserved,
+		"computedBalance":  rep.ComputedBalance,
+		"computedReserved": rep.ComputedReserved,
+		"consistent":       rep.Consistent,
+	})
+}
+
 // Balance godoc
 // @Summary      Get a user's charges balance (admin)
 // @Description  Returns balance, reserved and available charges for a user. Requires the admin token.
@@ -91,8 +185,8 @@ func (h *AdminHandler) Credit(w http.ResponseWriter, r *http.Request) {
 // @Produce      json
 // @Param        id  path      string  true  "user id"
 // @Security     AdminToken
-// @Success      200  {object}  map[string]interface{}
-// @Failure      401  {object}  map[string]string
+// @Success      200  {object}  handler.BalanceResponse
+// @Failure      401  {object}  handler.ErrorResponse
 // @Router       /admin/users/{id} [get]
 func (h *AdminHandler) Balance(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

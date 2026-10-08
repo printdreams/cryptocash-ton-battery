@@ -12,6 +12,7 @@ import (
 	"github.com/printdreams/cryptocash-ton-battery/internal/ledger"
 	"github.com/printdreams/cryptocash-ton-battery/internal/message"
 	"github.com/printdreams/cryptocash-ton-battery/internal/policy"
+	"github.com/printdreams/cryptocash-ton-battery/internal/price"
 )
 
 type WalletEmulateHandler struct {
@@ -19,10 +20,11 @@ type WalletEmulateHandler struct {
 	Ledger   *ledger.Store
 	MsgCfg   message.Config
 	PolCfg   policy.Config
+	Price    *price.Oracle
 }
 
-func NewWalletEmulateHandler(e *emulate.Client, l *ledger.Store, msg message.Config, pol policy.Config) *WalletEmulateHandler {
-	return &WalletEmulateHandler{Emulator: e, Ledger: l, MsgCfg: msg, PolCfg: pol}
+func NewWalletEmulateHandler(e *emulate.Client, l *ledger.Store, msg message.Config, pol policy.Config, pr *price.Oracle) *WalletEmulateHandler {
+	return &WalletEmulateHandler{Emulator: e, Ledger: l, MsgCfg: msg, PolCfg: pol, Price: pr}
 }
 
 type walletEmulateRequest struct {
@@ -38,9 +40,9 @@ type walletEmulateRequest struct {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        body  body      walletEmulateRequest  true  "message boc"
-// @Success      200   {object}  map[string]interface{}
-// @Failure      400   {object}  map[string]string
-// @Failure      401   {object}  map[string]string
+// @Success      200   {object}  handler.DecisionResponse
+// @Failure      400   {object}  handler.ErrorResponse
+// @Failure      401   {object}  handler.ErrorResponse
 // @Router       /wallet/emulate [post]
 func (h *WalletEmulateHandler) Emulate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -84,7 +86,14 @@ func (h *WalletEmulateHandler) Emulate(w http.ResponseWriter, r *http.Request) {
 		facts.AvailableCharges = acc.Available()
 	}
 
-	d := policy.Evaluate(facts, h.PolCfg)
+	polCfg := h.PolCfg
+	if h.Price != nil {
+		if n := h.Price.NanoPerCharge(r.Context()); n > 0 {
+			polCfg.NanoPerCharge = n
+		}
+	}
+
+	d := policy.Evaluate(facts, polCfg)
 
 	w.Header().Set("Supported-By-Battery", strconv.FormatBool(d.SupportedByBattery))
 	w.Header().Set("Allowed-By-Battery", strconv.FormatBool(d.AllowedByBattery))
