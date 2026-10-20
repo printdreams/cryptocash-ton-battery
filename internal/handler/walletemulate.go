@@ -2,7 +2,10 @@ package handler
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,18 +16,39 @@ import (
 	"github.com/printdreams/cryptocash-ton-battery/internal/message"
 	"github.com/printdreams/cryptocash-ton-battery/internal/policy"
 	"github.com/printdreams/cryptocash-ton-battery/internal/price"
+	"github.com/printdreams/cryptocash-ton-battery/internal/relayer"
+	"github.com/printdreams/cryptocash-ton-battery/internal/user"
 )
 
 type WalletEmulateHandler struct {
 	Emulator *emulate.Client
 	Ledger   *ledger.Store
+	Users    *user.Store
+	Sender   *relayer.Sender
 	MsgCfg   message.Config
 	PolCfg   policy.Config
+	GasTON   string
 	Price    *price.Oracle
 }
 
-func NewWalletEmulateHandler(e *emulate.Client, l *ledger.Store, msg message.Config, pol policy.Config, pr *price.Oracle) *WalletEmulateHandler {
-	return &WalletEmulateHandler{Emulator: e, Ledger: l, MsgCfg: msg, PolCfg: pol, Price: pr}
+func NewWalletEmulateHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasTON string, pr *price.Oracle) *WalletEmulateHandler {
+	return &WalletEmulateHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasTON: gasTON, Price: pr}
+}
+
+func relayExternalBOC(ctx context.Context, users *user.Store, sender *relayer.Sender, userID, boc, gasTON string) (string, error) {
+	u, err := users.Get(ctx, userID)
+	if err != nil {
+		return "", errors.New("user-not-found")
+	}
+	pub, err := hex.DecodeString(u.PublicKey)
+	if err != nil || len(pub) != 32 {
+		return "", errors.New("bad-user-key")
+	}
+	body, err := base64.StdEncoding.DecodeString(boc)
+	if err != nil {
+		return "", errors.New("malformed-message")
+	}
+	return sender.BuildRelayExternalBOC(ctx, pub, body, gasTON)
 }
 
 type walletEmulateRequest struct {
@@ -40,9 +64,9 @@ type walletEmulateRequest struct {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        body  body      walletEmulateRequest  true  "message boc"
-// @Success      200   {object}  handler.DecisionResponse
-// @Failure      400   {object}  handler.ErrorResponse
-// @Failure      401   {object}  handler.ErrorResponse
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  map[string]string
+// @Failure      401   {object}  map[string]string
 // @Router       /wallet/emulate [post]
 func (h *WalletEmulateHandler) Emulate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -66,19 +90,27 @@ func (h *WalletEmulateHandler) Emulate(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().Unix()
 	facts := policy.Facts{}
+	var emulDetail string
 
 	if _, perr := message.Check(req.Boc, h.MsgCfg, now); perr != nil {
 		facts.StaticReason = perr.Error()
-	} else if h.Emulator != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
-		em, eerr := h.Emulator.EmulateTrace(ctx, req.Boc, req.IgnoreSignature)
-		cancel()
-		if eerr == nil {
-			facts.Emulated = true
-			facts.EmulationSuccess = em.Success
-			facts.TotalFeesNano = em.TotalFeesNano
-			facts.OutMessages = em.OutMessages
-			facts.Destinations = em.Destinations
+	} else if h.Emulator != nil && h.Sender != nil && h.Users != nil {
+		emBOC, berr := relayExternalBOC(r.Context(), h.Users, h.Sender, userID, req.Boc, h.GasTON)
+		if berr != nil {
+			emulDetail = berr.Error()
+		} else {
+			ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+			em, eerr := h.Emulator.EmulateTrace(ctx, emBOC, req.IgnoreSignature)
+			cancel()
+			if eerr != nil {
+				emulDetail = eerr.Error()
+			} else {
+				facts.Emulated = true
+				facts.EmulationSuccess = em.Success
+				facts.TotalFeesNano = em.TotalFeesNano
+				facts.OutMessages = em.OutMessages
+				facts.Destinations = em.Destinations
+			}
 		}
 	}
 
@@ -101,10 +133,16 @@ func (h *WalletEmulateHandler) Emulate(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Reject-Reason", d.RejectReason)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
+	resp := map[string]interface{}{
 		"supported":    d.SupportedByBattery,
 		"allowed":      d.AllowedByBattery,
 		"rejectReason": d.RejectReason,
 		"charge":       d.Charge,
-	})
+	}
+	if d.RejectReason == "emulation-failed" && emulDetail != "" {
+		resp["detail"] = emulDetail
+		w.Header().Set("Reject-Detail", emulDetail)
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }

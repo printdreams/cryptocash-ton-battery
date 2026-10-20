@@ -51,10 +51,10 @@ type sendRequest struct {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        body  body      sendRequest  true  "message boc"
-// @Success      200   {object}  handler.MessageSentResponse
-// @Failure      400   {object}  handler.ErrorResponse
-// @Failure      401   {object}  handler.ErrorResponse
-// @Failure      502   {object}  handler.ErrorResponse
+// @Success      200   {object}  map[string]interface{}
+// @Failure      400   {object}  map[string]string
+// @Failure      401   {object}  map[string]string
+// @Failure      502   {object}  map[string]string
 // @Router       /message [post]
 func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -83,18 +83,47 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().Unix()
 	facts := policy.Facts{}
+	var emulDetail string
+	var pubBytes, bocBytes []byte
+
 	if _, perr := message.Check(req.Boc, h.MsgCfg, now); perr != nil {
 		facts.StaticReason = perr.Error()
-	} else if h.Emulator != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
-		em, eerr := h.Emulator.EmulateTrace(ctx, req.Boc, req.IgnoreSignature)
-		cancel()
-		if eerr == nil {
-			facts.Emulated = true
-			facts.EmulationSuccess = em.Success
-			facts.TotalFeesNano = em.TotalFeesNano
-			facts.OutMessages = em.OutMessages
-			facts.Destinations = em.Destinations
+	} else {
+		u, uerr := h.Users.Get(r.Context(), userID)
+		if uerr != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "user-not-found"})
+			return
+		}
+		pb, kerr := hex.DecodeString(u.PublicKey)
+		if kerr != nil || len(pb) != 32 {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "bad-user-key"})
+			return
+		}
+		bb, berr := base64.StdEncoding.DecodeString(req.Boc)
+		if berr != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "malformed-message"})
+			return
+		}
+		pubBytes, bocBytes = pb, bb
+
+		if h.Emulator != nil && h.Sender != nil {
+			emBOC, eberr := h.Sender.BuildRelayExternalBOC(r.Context(), pubBytes, bocBytes, h.GasTON)
+			if eberr != nil {
+				emulDetail = eberr.Error()
+			} else {
+				ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+				em, eerr := h.Emulator.EmulateTrace(ctx, emBOC, req.IgnoreSignature)
+				cancel()
+				if eerr != nil {
+					emulDetail = eerr.Error()
+				} else {
+					facts.Emulated = true
+					facts.EmulationSuccess = em.Success
+					facts.TotalFeesNano = em.TotalFeesNano
+					facts.OutMessages = em.OutMessages
+					facts.Destinations = em.Destinations
+				}
+			}
 		}
 	}
 	if acc, aerr := h.Ledger.Balance(r.Context(), userID); aerr == nil {
@@ -117,33 +146,22 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !d.AllowedByBattery {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
+		resp := map[string]interface{}{
 			"allowed":      false,
 			"supported":    d.SupportedByBattery,
 			"rejectReason": d.RejectReason,
 			"charge":       d.Charge,
-		})
+		}
+		if d.RejectReason == "emulation-failed" && emulDetail != "" {
+			resp["detail"] = emulDetail
+			w.Header().Set("Reject-Detail", emulDetail)
+		}
+		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 
 	if h.Sender == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "relayer-sender-not-ready"})
-		return
-	}
-
-	u, uerr := h.Users.Get(r.Context(), userID)
-	if uerr != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "user-not-found"})
-		return
-	}
-	pubBytes, kerr := hex.DecodeString(u.PublicKey)
-	if kerr != nil || len(pubBytes) != 32 {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "bad-user-key"})
-		return
-	}
-	bocBytes, berr := base64.StdEncoding.DecodeString(req.Boc)
-	if berr != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "malformed-message"})
 		return
 	}
 

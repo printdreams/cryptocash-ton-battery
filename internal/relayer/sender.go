@@ -3,6 +3,7 @@ package relayer
 import (
 	"context"
 	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/hex"
 	"strings"
 
@@ -53,30 +54,30 @@ func (s *Sender) Address() string {
 	return s.w.WalletAddress().String()
 }
 
-func (s *Sender) RelayUserMessage(ctx context.Context, userPubKey, bodyBOC []byte, gasTON string) (string, error) {
+func (s *Sender) buildRelayMessage(userPubKey, bodyBOC []byte, gasTON string) (*wallet.Message, error) {
 	pub := ed25519.PublicKey(userPubKey)
 
 	userAddr, err := tonproof.DeriveV5Address(pub, s.net, 0)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	stateInit, err := wallet.GetStateInit(pub, wallet.ConfigV5R1Final{NetworkGlobalID: s.net}, 0)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	body, err := cell.FromBOC(bodyBOC)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	amount, err := tlb.FromTON(gasTON)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	msg := &wallet.Message{
+	return &wallet.Message{
 		Mode: 3,
 		InternalMessage: &tlb.InternalMessage{
 			IHRDisabled: true,
@@ -86,6 +87,13 @@ func (s *Sender) RelayUserMessage(ctx context.Context, userPubKey, bodyBOC []byt
 			StateInit:   stateInit,
 			Body:        body,
 		},
+	}, nil
+}
+
+func (s *Sender) RelayUserMessage(ctx context.Context, userPubKey, bodyBOC []byte, gasTON string) (string, error) {
+	msg, err := s.buildRelayMessage(userPubKey, bodyBOC, gasTON)
+	if err != nil {
+		return "", err
 	}
 
 	tx, _, err := s.w.SendWaitTransaction(ctx, msg)
@@ -94,6 +102,25 @@ func (s *Sender) RelayUserMessage(ctx context.Context, userPubKey, bodyBOC []byt
 	}
 
 	return hex.EncodeToString(tx.Hash), nil
+}
+
+func (s *Sender) BuildRelayExternalBOC(ctx context.Context, userPubKey, bodyBOC []byte, gasTON string) (string, error) {
+	msg, err := s.buildRelayMessage(userPubKey, bodyBOC, gasTON)
+	if err != nil {
+		return "", err
+	}
+
+	ext, err := s.w.BuildExternalMessage(ctx, msg)
+	if err != nil {
+		return "", err
+	}
+
+	c, err := ext.ToCell()
+	if err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(c.ToBOC()), nil
 }
 
 func (s *Sender) Send(ctx context.Context, to, amountTON, comment string) (string, error) {

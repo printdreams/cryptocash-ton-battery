@@ -89,7 +89,7 @@ func SetupRoutes(r *chi.Mux, d Deps) {
 		pr.Get("/balance", accountHandler.Balance)
 		pr.Get("/transactions", accountHandler.Transactions)
 
-		walletEmu := NewWalletEmulateHandler(d.Emulator, d.Ledger, d.MsgCfg, d.PolCfg, d.Price)
+		walletEmu := NewWalletEmulateHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.RelayGasTON, d.Price)
 		pr.Post("/wallet/emulate", walletEmu.Emulate)
 
 		messageH := NewMessageHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.RelayGasTON, d.Price, d.Limiter, d.Killswitch)
