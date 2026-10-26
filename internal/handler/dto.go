@@ -27,6 +27,15 @@ type ProductsResponse struct {
 	Products []ProductDTO `json:"products"`
 }
 
+type TonapiStatusResponse struct {
+	KeyConfigured bool   `json:"keyConfigured"`
+	Valid         bool   `json:"valid"`
+	WithKeyStatus int    `json:"withKeyStatus"`
+	BadKeyStatus  int    `json:"badKeyStatus"`
+	Endpoint      string `json:"endpoint"`
+	Detail        string `json:"detail"`
+}
+
 type RelayerStatusResponse struct {
 	Address     string `json:"address"`
 	Online      bool   `json:"online"`

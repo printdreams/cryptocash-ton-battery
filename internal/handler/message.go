@@ -22,20 +22,22 @@ import (
 )
 
 type MessageHandler struct {
-	Emulator   *emulate.Client
-	Ledger     *ledger.Store
-	Users      *user.Store
-	Sender     *relayer.Sender
-	MsgCfg     message.Config
-	PolCfg     policy.Config
-	GasTON     string
-	Price      *price.Oracle
-	Limiter    *abuse.Limiter
-	Killswitch *abuse.Killswitch
+	Emulator     *emulate.Client
+	Ledger       *ledger.Store
+	Users        *user.Store
+	Sender       *relayer.Sender
+	MsgCfg       message.Config
+	PolCfg       policy.Config
+	GasProbeNano int64
+	GasMarginBps int64
+	GasMinNano   int64
+	Price        *price.Oracle
+	Limiter      *abuse.Limiter
+	Killswitch   *abuse.Killswitch
 }
 
-func NewMessageHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasTON string, pr *price.Oracle, lim *abuse.Limiter, ks *abuse.Killswitch) *MessageHandler {
-	return &MessageHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasTON: gasTON, Price: pr, Limiter: lim, Killswitch: ks}
+func NewMessageHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasProbeNano, gasMarginBps, gasMinNano int64, pr *price.Oracle, lim *abuse.Limiter, ks *abuse.Killswitch) *MessageHandler {
+	return &MessageHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasProbeNano: gasProbeNano, GasMarginBps: gasMarginBps, GasMinNano: gasMinNano, Price: pr, Limiter: lim, Killswitch: ks}
 }
 
 type sendRequest struct {
@@ -107,7 +109,7 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 		pubBytes, bocBytes = pb, bb
 
 		if h.Emulator != nil && h.Sender != nil {
-			emBOC, eberr := h.Sender.BuildRelayExternalBOC(r.Context(), pubBytes, bocBytes, h.GasTON)
+			emBOC, eberr := h.Sender.BuildRelayExternalBOC(r.Context(), pubBytes, bocBytes, h.GasProbeNano)
 			if eberr != nil {
 				emulDetail = eberr.Error()
 			} else {
@@ -185,8 +187,13 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	gasNano := facts.TotalFeesNano * h.GasMarginBps / 10000
+	if gasNano < h.GasMinNano {
+		gasNano = h.GasMinNano
+	}
+
 	sctx, scancel := context.WithTimeout(r.Context(), 90*time.Second)
-	txHash, serr := h.Sender.RelayUserMessage(sctx, pubBytes, bocBytes, h.GasTON)
+	txHash, serr := h.Sender.RelayUserMessage(sctx, pubBytes, bocBytes, gasNano)
 	scancel()
 
 	if serr != nil {

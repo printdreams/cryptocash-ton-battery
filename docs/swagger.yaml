@@ -26,17 +26,6 @@ definitions:
       userId:
         type: string
     type: object
-  handler.DecisionResponse:
-    properties:
-      allowed:
-        type: boolean
-      charge:
-        type: integer
-      rejectReason:
-        type: string
-      supported:
-        type: boolean
-    type: object
   handler.EmulateResponse:
     properties:
       destinations:
@@ -102,15 +91,6 @@ definitions:
       publicKey:
         type: string
       userId:
-        type: string
-    type: object
-  handler.MessageSentResponse:
-    properties:
-      charge:
-        type: integer
-      status:
-        type: string
-      txHash:
         type: string
     type: object
   handler.PayloadResponse:
@@ -228,6 +208,21 @@ definitions:
         type: string
       userId:
         type: string
+    type: object
+  handler.TonapiStatusResponse:
+    properties:
+      badKeyStatus:
+        type: integer
+      detail:
+        type: string
+      endpoint:
+        type: string
+      keyConfigured:
+        type: boolean
+      valid:
+        type: boolean
+      withKeyStatus:
+        type: integer
     type: object
   handler.TransactionsResponse:
     properties:
@@ -585,19 +580,26 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.MessageSentResponse'
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handler.ErrorResponse'
+            additionalProperties:
+              type: string
+            type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handler.ErrorResponse'
+            additionalProperties:
+              type: string
+            type: object
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/handler.ErrorResponse'
+            additionalProperties:
+              type: string
+            type: object
       security:
       - BearerAuth: []
       summary: Send a gasless message
@@ -874,6 +876,26 @@ paths:
       summary: Generate ton_proof payload
       tags:
       - auth
+  /tonapi/status:
+    get:
+      description: Calls tonapi with the configured TON_API_KEY and reports whether
+        the key is accepted (valid) or rejected (bogus). Does not reveal the key.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.TonapiStatusResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: tonapi key status
+      tags:
+      - tonapi
   /transactions:
     get:
       description: Returns the authenticated user's ledger entries, newest first
@@ -913,15 +935,20 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/handler.DecisionResponse'
+            additionalProperties: true
+            type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/handler.ErrorResponse'
+            additionalProperties:
+              type: string
+            type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/handler.ErrorResponse'
+            additionalProperties:
+              type: string
+            type: object
       security:
       - BearerAuth: []
       summary: Emulate a message and return the battery decision

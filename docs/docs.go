@@ -408,25 +408,35 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.MessageSentResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -836,6 +846,35 @@ const docTemplate = `{
                 }
             }
         },
+        "/tonapi/status": {
+            "get": {
+                "description": "Calls tonapi with the configured TON_API_KEY and reports whether the key is accepted (valid) or rejected (bogus). Does not reveal the key.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tonapi"
+                ],
+                "summary": "tonapi key status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.TonapiStatusResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/transactions": {
             "get": {
                 "security": [
@@ -900,19 +939,26 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/handler.DecisionResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/handler.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -957,23 +1003,6 @@ const docTemplate = `{
                 },
                 "userId": {
                     "type": "string"
-                }
-            }
-        },
-        "handler.DecisionResponse": {
-            "type": "object",
-            "properties": {
-                "allowed": {
-                    "type": "boolean"
-                },
-                "charge": {
-                    "type": "integer"
-                },
-                "rejectReason": {
-                    "type": "string"
-                },
-                "supported": {
-                    "type": "boolean"
                 }
             }
         },
@@ -1077,20 +1106,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "userId": {
-                    "type": "string"
-                }
-            }
-        },
-        "handler.MessageSentResponse": {
-            "type": "object",
-            "properties": {
-                "charge": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "txHash": {
                     "type": "string"
                 }
             }
@@ -1271,6 +1286,29 @@ const docTemplate = `{
                 },
                 "userId": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.TonapiStatusResponse": {
+            "type": "object",
+            "properties": {
+                "badKeyStatus": {
+                    "type": "integer"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "endpoint": {
+                    "type": "string"
+                },
+                "keyConfigured": {
+                    "type": "boolean"
+                },
+                "valid": {
+                    "type": "boolean"
+                },
+                "withKeyStatus": {
+                    "type": "integer"
                 }
             }
         },

@@ -21,21 +21,21 @@ import (
 )
 
 type WalletEmulateHandler struct {
-	Emulator *emulate.Client
-	Ledger   *ledger.Store
-	Users    *user.Store
-	Sender   *relayer.Sender
-	MsgCfg   message.Config
-	PolCfg   policy.Config
-	GasTON   string
-	Price    *price.Oracle
+	Emulator     *emulate.Client
+	Ledger       *ledger.Store
+	Users        *user.Store
+	Sender       *relayer.Sender
+	MsgCfg       message.Config
+	PolCfg       policy.Config
+	GasProbeNano int64
+	Price        *price.Oracle
 }
 
-func NewWalletEmulateHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasTON string, pr *price.Oracle) *WalletEmulateHandler {
-	return &WalletEmulateHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasTON: gasTON, Price: pr}
+func NewWalletEmulateHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasProbeNano int64, pr *price.Oracle) *WalletEmulateHandler {
+	return &WalletEmulateHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasProbeNano: gasProbeNano, Price: pr}
 }
 
-func relayExternalBOC(ctx context.Context, users *user.Store, sender *relayer.Sender, userID, boc, gasTON string) (string, error) {
+func relayExternalBOC(ctx context.Context, users *user.Store, sender *relayer.Sender, userID, boc string, gasNano int64) (string, error) {
 	u, err := users.Get(ctx, userID)
 	if err != nil {
 		return "", errors.New("user-not-found")
@@ -48,7 +48,7 @@ func relayExternalBOC(ctx context.Context, users *user.Store, sender *relayer.Se
 	if err != nil {
 		return "", errors.New("malformed-message")
 	}
-	return sender.BuildRelayExternalBOC(ctx, pub, body, gasTON)
+	return sender.BuildRelayExternalBOC(ctx, pub, body, gasNano)
 }
 
 type walletEmulateRequest struct {
@@ -95,7 +95,7 @@ func (h *WalletEmulateHandler) Emulate(w http.ResponseWriter, r *http.Request) {
 	if _, perr := message.Check(req.Boc, h.MsgCfg, now); perr != nil {
 		facts.StaticReason = perr.Error()
 	} else if h.Emulator != nil && h.Sender != nil && h.Users != nil {
-		emBOC, berr := relayExternalBOC(r.Context(), h.Users, h.Sender, userID, req.Boc, h.GasTON)
+		emBOC, berr := relayExternalBOC(r.Context(), h.Users, h.Sender, userID, req.Boc, h.GasProbeNano)
 		if berr != nil {
 			emulDetail = berr.Error()
 		} else {

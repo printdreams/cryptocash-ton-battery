@@ -54,7 +54,15 @@ func (s *Sender) Address() string {
 	return s.w.WalletAddress().String()
 }
 
-func (s *Sender) buildRelayMessage(userPubKey, bodyBOC []byte, gasTON string) (*wallet.Message, error) {
+func TONStringToNano(s string) int64 {
+	c, err := tlb.FromTON(s)
+	if err != nil {
+		return 0
+	}
+	return c.Nano().Int64()
+}
+
+func (s *Sender) buildRelayMessage(userPubKey, bodyBOC []byte, gasNano int64) (*wallet.Message, error) {
 	pub := ed25519.PublicKey(userPubKey)
 
 	userAddr, err := tonproof.DeriveV5Address(pub, s.net, 0)
@@ -72,9 +80,8 @@ func (s *Sender) buildRelayMessage(userPubKey, bodyBOC []byte, gasTON string) (*
 		return nil, err
 	}
 
-	amount, err := tlb.FromTON(gasTON)
-	if err != nil {
-		return nil, err
+	if gasNano < 0 {
+		gasNano = 0
 	}
 
 	return &wallet.Message{
@@ -83,15 +90,15 @@ func (s *Sender) buildRelayMessage(userPubKey, bodyBOC []byte, gasTON string) (*
 			IHRDisabled: true,
 			Bounce:      false,
 			DstAddr:     userAddr,
-			Amount:      amount,
+			Amount:      tlb.FromNanoTONU(uint64(gasNano)),
 			StateInit:   stateInit,
 			Body:        body,
 		},
 	}, nil
 }
 
-func (s *Sender) RelayUserMessage(ctx context.Context, userPubKey, bodyBOC []byte, gasTON string) (string, error) {
-	msg, err := s.buildRelayMessage(userPubKey, bodyBOC, gasTON)
+func (s *Sender) RelayUserMessage(ctx context.Context, userPubKey, bodyBOC []byte, gasNano int64) (string, error) {
+	msg, err := s.buildRelayMessage(userPubKey, bodyBOC, gasNano)
 	if err != nil {
 		return "", err
 	}
@@ -104,8 +111,8 @@ func (s *Sender) RelayUserMessage(ctx context.Context, userPubKey, bodyBOC []byt
 	return hex.EncodeToString(tx.Hash), nil
 }
 
-func (s *Sender) BuildRelayExternalBOC(ctx context.Context, userPubKey, bodyBOC []byte, gasTON string) (string, error) {
-	msg, err := s.buildRelayMessage(userPubKey, bodyBOC, gasTON)
+func (s *Sender) BuildRelayExternalBOC(ctx context.Context, userPubKey, bodyBOC []byte, gasNano int64) (string, error) {
+	msg, err := s.buildRelayMessage(userPubKey, bodyBOC, gasNano)
 	if err != nil {
 		return "", err
 	}

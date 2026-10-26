@@ -40,7 +40,9 @@ type Deps struct {
 	Emulator      *emulate.Client
 	MsgCfg        message.Config
 	PolCfg        policy.Config
-	RelayGasTON   string
+	GasProbeNano  int64
+	GasMarginBps  int64
+	GasMinNano    int64
 	Price         *price.Oracle
 	PrintStore    *print.Store
 	PrintCfg      print.Config
@@ -64,6 +66,9 @@ func SetupRoutes(r *chi.Mux, d Deps) {
 
 	priceHandler := NewPriceHandler(d.Price)
 	r.Get("/price", priceHandler.Price)
+
+	tonapiHandler := NewTonapiHandler(d.Emulator)
+	r.Get("/tonapi/status", tonapiHandler.Status)
 
 	tpHandler := NewTonProofHandler(d.Nonces, d.Verifier, d.JWT, d.Users)
 	r.Get("/ton-proof/payload", tpHandler.Payload)
@@ -89,10 +94,10 @@ func SetupRoutes(r *chi.Mux, d Deps) {
 		pr.Get("/balance", accountHandler.Balance)
 		pr.Get("/transactions", accountHandler.Transactions)
 
-		walletEmu := NewWalletEmulateHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.RelayGasTON, d.Price)
+		walletEmu := NewWalletEmulateHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.GasProbeNano, d.Price)
 		pr.Post("/wallet/emulate", walletEmu.Emulate)
 
-		messageH := NewMessageHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.RelayGasTON, d.Price, d.Limiter, d.Killswitch)
+		messageH := NewMessageHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.GasProbeNano, d.GasMarginBps, d.GasMinNano, d.Price, d.Limiter, d.Killswitch)
 		pr.Post("/message", messageH.Send)
 
 		printH := NewPrintHandler(d.PrintStore, d.Ledger, d.RelayerSender, d.Price, d.PolCfg, d.PrintCfg, d.Limiter, d.Killswitch)
