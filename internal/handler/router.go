@@ -43,6 +43,7 @@ type Deps struct {
 	GasProbeNano  int64
 	GasMarginBps  int64
 	GasMinNano    int64
+	FundForward   bool
 	Price         *price.Oracle
 	PrintStore    *print.Store
 	PrintCfg      print.Config
@@ -97,7 +98,7 @@ func SetupRoutes(r *chi.Mux, d Deps) {
 		walletEmu := NewWalletEmulateHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.GasProbeNano, d.Price)
 		pr.Post("/wallet/emulate", walletEmu.Emulate)
 
-		messageH := NewMessageHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.GasProbeNano, d.GasMarginBps, d.GasMinNano, d.Price, d.Limiter, d.Killswitch)
+		messageH := NewMessageHandler(d.Emulator, d.Ledger, d.Users, d.RelayerSender, d.MsgCfg, d.PolCfg, d.GasProbeNano, d.GasMarginBps, d.GasMinNano, d.FundForward, d.Price, d.Limiter, d.Killswitch)
 		pr.Post("/message", messageH.Send)
 
 		printH := NewPrintHandler(d.PrintStore, d.Ledger, d.RelayerSender, d.Price, d.PolCfg, d.PrintCfg, d.Limiter, d.Killswitch)

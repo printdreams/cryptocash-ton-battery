@@ -27,10 +27,11 @@ func NewClient(baseURL, apiKey string) *Client {
 }
 
 type Result struct {
-	Success       bool
-	TotalFeesNano int64
-	OutMessages   int
-	Destinations  []string
+	Success          bool
+	TotalFeesNano    int64
+	ForwardValueNano int64
+	OutMessages      int
+	Destinations     []string
 }
 
 type apiAddress struct {
@@ -38,7 +39,10 @@ type apiAddress struct {
 }
 
 type apiMessage struct {
-	Destination apiAddress `json:"destination"`
+	Destination   apiAddress `json:"destination"`
+	Value         int64      `json:"value"`
+	OpCode        string     `json:"op_code"`
+	DecodedOpName string     `json:"decoded_op_name"`
 }
 
 type apiTransaction struct {
@@ -161,12 +165,27 @@ func summarize(root apiTrace) *Result {
 		if m.Destination.Address != "" {
 			res.Destinations = append(res.Destinations, m.Destination.Address)
 		}
+		if isForwardMsg(m) {
+			res.ForwardValueNano += m.Value
+		}
 	}
 	return res
 }
 
 func txOK(t apiTransaction) bool {
 	return t.Success && !t.Aborted
+}
+
+func isForwardMsg(m apiMessage) bool {
+	switch strings.ToLower(m.DecodedOpName) {
+	case "jetton_transfer", "nft_transfer":
+		return true
+	}
+	switch strings.TrimPrefix(strings.ToLower(m.OpCode), "0x") {
+	case "0f8a7ea5", "f8a7ea5", "5fcc3d14":
+		return true
+	}
+	return false
 }
 
 type KeyStatus struct {

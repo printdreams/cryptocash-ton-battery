@@ -17,8 +17,8 @@ func TestSummarizeSuccess(t *testing.T) {
 		TotalFees: 500,
 		Account:   apiAddress{Address: "0:user"},
 		OutMsgs: []apiMessage{
-			{Destination: apiAddress{Address: "0:dest1"}},
-			{Destination: apiAddress{Address: "0:dest2"}},
+			{Destination: apiAddress{Address: "0:dest1"}, Value: 100000000},
+			{Destination: apiAddress{Address: "0:dest2"}, Value: 200000000},
 		},
 	}, nil)
 
@@ -28,6 +28,9 @@ func TestSummarizeSuccess(t *testing.T) {
 	}
 	if res.TotalFeesNano != 500 {
 		t.Fatalf("expected user-wallet fees 500, got %d", res.TotalFeesNano)
+	}
+	if res.ForwardValueNano != 0 {
+		t.Fatalf("plain Gram transfers must not count as forward value, got %d", res.ForwardValueNano)
 	}
 	if res.OutMessages != 2 {
 		t.Fatalf("expected 2 out messages, got %d", res.OutMessages)
@@ -78,7 +81,7 @@ func TestSummarizeJettonSingleOutMessage(t *testing.T) {
 		Success:   true,
 		TotalFees: 600,
 		Account:   apiAddress{Address: "0:user"},
-		OutMsgs:   []apiMessage{{Destination: apiAddress{Address: "0:userjettonwallet"}}},
+		OutMsgs:   []apiMessage{{Destination: apiAddress{Address: "0:userjettonwallet"}, OpCode: "0x0f8a7ea5", Value: 50000000}},
 	}, []apiTrace{
 		{Transaction: apiTransaction{Success: true, Account: apiAddress{Address: "0:userjettonwallet"}}, Children: []apiTrace{
 			{Transaction: apiTransaction{Success: true, Account: apiAddress{Address: "0:recipjettonwallet"}}, Children: []apiTrace{
@@ -94,6 +97,9 @@ func TestSummarizeJettonSingleOutMessage(t *testing.T) {
 	}
 	if res.OutMessages != 1 {
 		t.Fatalf("jetton transfer signs one message; got %d", res.OutMessages)
+	}
+	if res.ForwardValueNano != 50000000 {
+		t.Fatalf("expected jetton forward value 50000000, got %d", res.ForwardValueNano)
 	}
 }
 

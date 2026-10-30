@@ -47,6 +47,7 @@ type Config struct {
 	RelayGasTON             string
 	RelayGasMarginBps       int64
 	RelayGasMinTON          string
+	RelayFundForward        bool
 	PriceBaseURL            string
 	PriceCoinID             string
 	PriceCurrency           string
@@ -113,8 +114,9 @@ func Load() (*Config, error) {
 		PolicyMinCharge:         getEnvInt64("POLICY_MIN_CHARGE", 1),
 		PolicyBlockedDest:       getEnvList("POLICY_BLOCKED_DESTINATIONS"),
 		RelayGasTON:             getEnvDefault("RELAY_GAS_TON", "0.1"),
-		RelayGasMarginBps:       getEnvInt64("RELAY_GAS_MARGIN_BPS", 20000),
-		RelayGasMinTON:          getEnvDefault("RELAY_GAS_MIN_TON", "0.005"),
+		RelayGasMarginBps:       getEnvInt64("RELAY_GAS_MARGIN_BPS", 13000),
+		RelayGasMinTON:          getEnvDefault("RELAY_GAS_MIN_TON", "0.001"),
+		RelayFundForward:        getEnvBool("RELAY_FUND_FORWARD", false),
 		PriceBaseURL:            getEnvDefault("PRICE_BASE_URL", "https://api.coingecko.com"),
 		PriceCoinID:             getEnvDefault("PRICE_COIN_ID", "the-open-network"),
 		PriceCurrency:           getEnvDefault("PRICE_CURRENCY", "usd"),

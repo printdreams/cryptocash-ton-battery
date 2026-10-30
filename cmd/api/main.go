@@ -141,6 +141,7 @@ func main() {
 		GasProbeNano:  relayer.TONStringToNano(cfg.RelayGasTON),
 		GasMarginBps:  cfg.RelayGasMarginBps,
 		GasMinNano:    relayer.TONStringToNano(cfg.RelayGasMinTON),
+		FundForward:   cfg.RelayFundForward,
 		Price:         priceOracle,
 		PrintStore:    printStore,
 		PrintCfg:      printCfg,
