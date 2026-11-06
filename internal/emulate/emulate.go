@@ -27,11 +27,10 @@ func NewClient(baseURL, apiKey string) *Client {
 }
 
 type Result struct {
-	Success          bool
-	TotalFeesNano    int64
-	ForwardValueNano int64
-	OutMessages      int
-	Destinations     []string
+	Success       bool
+	TotalFeesNano int64
+	OutMessages   int
+	Destinations  []string
 }
 
 type apiAddress struct {
@@ -39,10 +38,7 @@ type apiAddress struct {
 }
 
 type apiMessage struct {
-	Destination   apiAddress `json:"destination"`
-	Value         int64      `json:"value"`
-	OpCode        string     `json:"op_code"`
-	DecodedOpName string     `json:"decoded_op_name"`
+	Destination apiAddress `json:"destination"`
 }
 
 type apiTransaction struct {
@@ -165,9 +161,6 @@ func summarize(root apiTrace) *Result {
 		if m.Destination.Address != "" {
 			res.Destinations = append(res.Destinations, m.Destination.Address)
 		}
-		if isForwardMsg(m) {
-			res.ForwardValueNano += m.Value
-		}
 	}
 	return res
 }
@@ -176,16 +169,55 @@ func txOK(t apiTransaction) bool {
 	return t.Success && !t.Aborted
 }
 
-func isForwardMsg(m apiMessage) bool {
-	switch strings.ToLower(m.DecodedOpName) {
-	case "jetton_transfer", "nft_transfer":
-		return true
+func (c *Client) getJSON(ctx context.Context, path string, out interface{}) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return err
 	}
-	switch strings.TrimPrefix(strings.ToLower(m.OpCode), "0x") {
-	case "0f8a7ea5", "f8a7ea5", "5fcc3d14":
-		return true
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
-	return false
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("tonapi http %d", resp.StatusCode)
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+func (c *Client) OwnsJettonWallet(ctx context.Context, ownerRaw, jettonWalletRaw string) (bool, error) {
+	var resp struct {
+		Balances []struct {
+			WalletAddress apiAddress `json:"wallet_address"`
+		} `json:"balances"`
+	}
+	if err := c.getJSON(ctx, "/v2/accounts/"+ownerRaw+"/jettons", &resp); err != nil {
+		return false, err
+	}
+	for _, b := range resp.Balances {
+		if strings.EqualFold(b.WalletAddress.Address, jettonWalletRaw) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (c *Client) OwnsNFT(ctx context.Context, ownerRaw, itemRaw string) (bool, error) {
+	var resp struct {
+		NFTItems []apiAddress `json:"nft_items"`
+	}
+	if err := c.getJSON(ctx, "/v2/accounts/"+ownerRaw+"/nfts", &resp); err != nil {
+		return false, err
+	}
+	for _, it := range resp.NFTItems {
+		if strings.EqualFold(it.Address, itemRaw) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 type KeyStatus struct {

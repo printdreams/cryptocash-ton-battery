@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -22,23 +23,25 @@ import (
 )
 
 type MessageHandler struct {
-	Emulator     *emulate.Client
-	Ledger       *ledger.Store
-	Users        *user.Store
-	Sender       *relayer.Sender
-	MsgCfg       message.Config
-	PolCfg       policy.Config
-	GasProbeNano int64
-	GasMarginBps int64
-	GasMinNano   int64
-	FundForward  bool
-	Price        *price.Oracle
-	Limiter      *abuse.Limiter
-	Killswitch   *abuse.Killswitch
+	Emulator       *emulate.Client
+	Ledger         *ledger.Store
+	Users          *user.Store
+	Sender         *relayer.Sender
+	MsgCfg         message.Config
+	PolCfg         policy.Config
+	GasProbeNano   int64
+	GasMarginBps   int64
+	GasMinNano     int64
+	FundForward    bool
+	ForwardCapNano int64
+	CheckOwner     bool
+	Price          *price.Oracle
+	Limiter        *abuse.Limiter
+	Killswitch     *abuse.Killswitch
 }
 
-func NewMessageHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasProbeNano, gasMarginBps, gasMinNano int64, fundForward bool, pr *price.Oracle, lim *abuse.Limiter, ks *abuse.Killswitch) *MessageHandler {
-	return &MessageHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasProbeNano: gasProbeNano, GasMarginBps: gasMarginBps, GasMinNano: gasMinNano, FundForward: fundForward, Price: pr, Limiter: lim, Killswitch: ks}
+func NewMessageHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasProbeNano, gasMarginBps, gasMinNano int64, fundForward bool, forwardCapNano int64, checkOwner bool, pr *price.Oracle, lim *abuse.Limiter, ks *abuse.Killswitch) *MessageHandler {
+	return &MessageHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasProbeNano: gasProbeNano, GasMarginBps: gasMarginBps, GasMinNano: gasMinNano, FundForward: fundForward, ForwardCapNano: forwardCapNano, CheckOwner: checkOwner, Price: pr, Limiter: lim, Killswitch: ks}
 }
 
 type sendRequest struct {
@@ -88,7 +91,6 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 	facts := policy.Facts{}
 	var emulDetail string
 	var pubBytes, bocBytes []byte
-	var forwardValueNano int64
 
 	if _, perr := message.Check(req.Boc, h.MsgCfg, now); perr != nil {
 		facts.StaticReason = perr.Error()
@@ -126,7 +128,6 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 					facts.TotalFeesNano = em.TotalFeesNano
 					facts.OutMessages = em.OutMessages
 					facts.Destinations = em.Destinations
-					forwardValueNano = em.ForwardValueNano
 				}
 			}
 		}
@@ -190,13 +191,17 @@ func (h *MessageHandler) Send(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	gasNano := facts.TotalFeesNano * h.GasMarginBps / 10000
+	fundedForward := int64(0)
 	if h.FundForward {
-		gasNano += forwardValueNano
+		fundedForward = computeFundedForward(r.Context(), h.Emulator, h.Sender, pubBytes, req.Boc, h.ForwardCapNano, h.CheckOwner)
 	}
+
+	gasNano := facts.TotalFeesNano*h.GasMarginBps/10000 + fundedForward
 	if gasNano < h.GasMinNano {
 		gasNano = h.GasMinNano
 	}
+
+	log.Printf("message attach user=%s gasFee=%d marginBps=%d fundedForward=%d attach=%d", userID, facts.TotalFeesNano, h.GasMarginBps, fundedForward, gasNano)
 
 	sctx, scancel := context.WithTimeout(r.Context(), 90*time.Second)
 	txHash, serr := h.Sender.RelayUserMessage(sctx, pubBytes, bocBytes, gasNano)

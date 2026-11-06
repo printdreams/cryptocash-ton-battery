@@ -62,6 +62,14 @@ func TONStringToNano(s string) int64 {
 	return c.Nano().Int64()
 }
 
+func (s *Sender) WalletAddress() *address.Address {
+	return s.w.WalletAddress()
+}
+
+func (s *Sender) UserAddress(userPubKey []byte) (*address.Address, error) {
+	return tonproof.DeriveV5Address(ed25519.PublicKey(userPubKey), s.net, 0)
+}
+
 func (s *Sender) buildRelayMessage(userPubKey, bodyBOC []byte, gasNano int64) (*wallet.Message, error) {
 	pub := ed25519.PublicKey(userPubKey)
 

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -21,34 +20,21 @@ import (
 )
 
 type WalletEmulateHandler struct {
-	Emulator     *emulate.Client
-	Ledger       *ledger.Store
-	Users        *user.Store
-	Sender       *relayer.Sender
-	MsgCfg       message.Config
-	PolCfg       policy.Config
-	GasProbeNano int64
-	Price        *price.Oracle
+	Emulator       *emulate.Client
+	Ledger         *ledger.Store
+	Users          *user.Store
+	Sender         *relayer.Sender
+	MsgCfg         message.Config
+	PolCfg         policy.Config
+	GasProbeNano   int64
+	FundForward    bool
+	ForwardCapNano int64
+	CheckOwner     bool
+	Price          *price.Oracle
 }
 
-func NewWalletEmulateHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasProbeNano int64, pr *price.Oracle) *WalletEmulateHandler {
-	return &WalletEmulateHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasProbeNano: gasProbeNano, Price: pr}
-}
-
-func relayExternalBOC(ctx context.Context, users *user.Store, sender *relayer.Sender, userID, boc string, gasNano int64) (string, error) {
-	u, err := users.Get(ctx, userID)
-	if err != nil {
-		return "", errors.New("user-not-found")
-	}
-	pub, err := hex.DecodeString(u.PublicKey)
-	if err != nil || len(pub) != 32 {
-		return "", errors.New("bad-user-key")
-	}
-	body, err := base64.StdEncoding.DecodeString(boc)
-	if err != nil {
-		return "", errors.New("malformed-message")
-	}
-	return sender.BuildRelayExternalBOC(ctx, pub, body, gasNano)
+func NewWalletEmulateHandler(e *emulate.Client, l *ledger.Store, u *user.Store, s *relayer.Sender, msg message.Config, pol policy.Config, gasProbeNano int64, fundForward bool, forwardCapNano int64, checkOwner bool, pr *price.Oracle) *WalletEmulateHandler {
+	return &WalletEmulateHandler{Emulator: e, Ledger: l, Users: u, Sender: s, MsgCfg: msg, PolCfg: pol, GasProbeNano: gasProbeNano, FundForward: fundForward, ForwardCapNano: forwardCapNano, CheckOwner: checkOwner, Price: pr}
 }
 
 type walletEmulateRequest struct {
@@ -95,21 +81,32 @@ func (h *WalletEmulateHandler) Emulate(w http.ResponseWriter, r *http.Request) {
 	if _, perr := message.Check(req.Boc, h.MsgCfg, now); perr != nil {
 		facts.StaticReason = perr.Error()
 	} else if h.Emulator != nil && h.Sender != nil && h.Users != nil {
-		emBOC, berr := relayExternalBOC(r.Context(), h.Users, h.Sender, userID, req.Boc, h.GasProbeNano)
-		if berr != nil {
-			emulDetail = berr.Error()
+		pub, bocBytes, rerr := h.resolveUser(r.Context(), userID, req.Boc)
+		if rerr != "" {
+			emulDetail = rerr
 		} else {
-			ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
-			em, eerr := h.Emulator.EmulateTrace(ctx, emBOC, req.IgnoreSignature)
-			cancel()
-			if eerr != nil {
-				emulDetail = eerr.Error()
+			fundedForward := int64(0)
+			if h.FundForward {
+				fundedForward = computeFundedForward(r.Context(), h.Emulator, h.Sender, pub, req.Boc, h.ForwardCapNano, h.CheckOwner)
+			}
+			probe := h.GasProbeNano + fundedForward
+
+			emBOC, berr := h.Sender.BuildRelayExternalBOC(r.Context(), pub, bocBytes, probe)
+			if berr != nil {
+				emulDetail = berr.Error()
 			} else {
-				facts.Emulated = true
-				facts.EmulationSuccess = em.Success
-				facts.TotalFeesNano = em.TotalFeesNano
-				facts.OutMessages = em.OutMessages
-				facts.Destinations = em.Destinations
+				ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+				em, eerr := h.Emulator.EmulateTrace(ctx, emBOC, req.IgnoreSignature)
+				cancel()
+				if eerr != nil {
+					emulDetail = eerr.Error()
+				} else {
+					facts.Emulated = true
+					facts.EmulationSuccess = em.Success
+					facts.TotalFeesNano = em.TotalFeesNano
+					facts.OutMessages = em.OutMessages
+					facts.Destinations = em.Destinations
+				}
 			}
 		}
 	}
@@ -145,4 +142,20 @@ func (h *WalletEmulateHandler) Emulate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *WalletEmulateHandler) resolveUser(ctx context.Context, userID, boc string) (pub []byte, bocBytes []byte, reason string) {
+	u, err := h.Users.Get(ctx, userID)
+	if err != nil {
+		return nil, nil, "user-not-found"
+	}
+	pub, err = hex.DecodeString(u.PublicKey)
+	if err != nil || len(pub) != 32 {
+		return nil, nil, "bad-user-key"
+	}
+	bocBytes, err = base64.StdEncoding.DecodeString(boc)
+	if err != nil {
+		return nil, nil, "malformed-message"
+	}
+	return pub, bocBytes, ""
 }
